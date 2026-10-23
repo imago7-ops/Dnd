@@ -563,6 +563,7 @@ const Campaign = (() => {
         fields: t.fields,
         current: entry ? entry.f : null,
         placeholder: AI_HINTS[sec.type] || `Describe the ${t.one}`,
+        meta: { kind: t.one, campaign: cp.name || 'Untitled campaign' },
         buildPrompt: (request, useContext) => aiPrompt(sec, request, useContext, entry ? entry.f : null),
         onAccept(fields) {
           if (entry) {
@@ -795,6 +796,7 @@ const Campaign = (() => {
             <p class="lede">Each campaign keeps its own notes, combat tracker and party room code.</p>
           </div>
           <div class="lib-actions">
+            <button class="btn btn-ai" data-lib="ai-log">AI activity</button>
             <button class="btn" data-lib="upload">Upload a campaign</button>
             <button class="btn btn-primary" data-lib="new">New campaign</button>
           </div>
@@ -825,6 +827,7 @@ const Campaign = (() => {
             Util.toast(`Uploaded ${made.name || 'campaign'} with room code ${made.roomCode}.`);
             mountLibrary(el);
           }).catch(err => Util.toast(err.message, 'error'));
+        case 'ai-log': return AI.openLog();
         case 'download':
           Util.download(`${Util.slug(c.name || 'campaign')}.json`, exportable(c));
           return Util.toast('Campaign downloaded.');

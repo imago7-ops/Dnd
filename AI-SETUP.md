@@ -1,77 +1,115 @@
-# Setting up the AI helper
+# Setting up AWS: the AI helper and website hosting
 
-The DM's **Draft with AI** buttons use Claude and/or ChatGPT. Your API keys must stay secret, so they live on a small free **Cloudflare Worker** (a tiny server), not in the website. The website talks to the Worker; the Worker adds your key and asks the AI.
+This guide moves Campaign Codex onto your Amazon Web Services (AWS) account:
 
-You'll need about 20 minutes. Do the steps in order.
+- **The AI helper** (Part C) is a small server that keeps your Claude and ChatGPT keys secret, checks each person's access code, logs every AI request (who, when, what, cost) and enforces a daily limit. One template file builds all of it.
+- **The website** (Part D) is hosted on AWS Amplify, which publishes your GitHub repo and updates on every change.
+
+Allow about 45 minutes. Do the parts in order. **Never paste API keys into a chat, the website or a GitHub file**; they only go into the AWS form in Part C.
 
 ---
 
-## 1. Get your AI keys (one or both)
+## Part A. Your AWS account (10 min)
+
+1. Create an account at https://aws.amazon.com (a payment card is required).
+   - New accounts start on the **Free plan** (credits, 6 months). It closes after 6 months unless you upgrade, so either pick the **Paid plan** now or set a reminder to upgrade. At your usage both cost about $0; you're only billed beyond the free allowances.
+2. **Turn on multi-factor authentication (MFA)**: top-right account menu → **Security credentials** → **Assign MFA device**. Do this before anything else.
+3. **Set a budget alert**: search the console for **Budgets** → **Create budget** → **Use a template** → **Monthly cost budget**, set **$5**, enter your email. AWS emails you if spending heads past that.
+4. Pick a region (top right) close to you, e.g. **US East (Ohio)**, and stay in it for every step.
+
+## Part B. Your AI keys (10 min)
 
 **Claude (Anthropic)**
-1. Go to https://platform.claude.com and sign in or create an account.
-2. Add a payment method and some credit in the Console's billing settings. A few dollars goes a long way (drafting one NPC costs roughly a cent).
-3. **Set a monthly spend limit** in the Console's billing / limits settings so a mistake can never cost more than you're comfortable with.
-4. Open https://platform.claude.com/settings/keys, click **Create key**, name it `campaign-codex`, and copy it. It starts with `sk-ant-` and is shown only once.
+1. Sign in at https://platform.claude.com.
+2. Add credit in billing settings and **set a monthly spend limit**.
+3. Create a key at https://platform.claude.com/settings/keys (name it `campaign-codex`) and copy it (starts with `sk-ant-`).
 
 **ChatGPT (OpenAI)**
-1. Go to https://platform.openai.com and sign in or create an account.
-2. Add billing credit, and **set a monthly budget limit** in the billing / limits settings.
-3. Create an API key under **API keys**, name it `campaign-codex`, and copy it (starts with `sk-`).
+1. Sign in at https://platform.openai.com.
+2. Add credit and **set a monthly budget limit**.
+3. Create a key under **API keys** (name it `campaign-codex`) and copy it (starts with `sk-`).
 
-Keep the keys somewhere private for the next step. Never paste them into the website, a chat, or a GitHub file.
+You can use one or both.
 
-## 2. Create the Worker
+## Part C. Create the AI helper (10 min)
 
-1. Make a free account at https://dash.cloudflare.com.
-2. Go to **Workers & Pages** → **Create** → **Create Worker** (start from "Hello World").
-3. Name it `codex-ai` and click **Deploy**.
-4. Click **Edit code**. Delete everything in the editor, then open `server/ai-worker.js` from this repo, copy all of it, and paste it in.
-5. Click **Deploy**.
-6. Copy the Worker's address shown at the top. It looks like `https://codex-ai.YOUR-NAME.workers.dev`.
+1. Get the template file: in your Dnd folder it's `server/aws/template.yaml`. (Or on GitHub: open the file → **Download raw file**.)
+2. In the AWS console, search for **CloudFormation** → **Create stack** → **With new resources (standard)**.
+3. Choose **Upload a template file** → pick `template.yaml` → **Next**.
+4. **Stack name:** `codex`. Then fill in the form:
 
-## 3. Add your keys and an access code
+   | Setting | What to enter |
+   |---|---|
+   | AnthropicApiKey | Your Claude key (leave empty to switch Claude off) |
+   | OpenAIApiKey | Your OpenAI key (leave empty to switch ChatGPT off) |
+   | AccessCodes | One code per person: `Josiah=owlbear-77, Sam=mimic-12`. The **name** is what shows in the activity log. Make codes hard to guess. |
+   | AdminCode | A separate password (8+ characters) for viewing the AI activity log |
+   | AllowedOrigins | Leave as `https://imago7-ops.github.io` for now (you'll add the Amplify address in Part D) |
+   | DailyLimit | Most AI requests per person per day (default 100) |
+   | Models / MaxTokens | Leave the defaults |
 
-In the Worker, go to **Settings** → **Variables and Secrets** → **Add**. Add each of these with type **Secret**:
+5. **Next** → **Next** → tick **"I acknowledge that AWS CloudFormation might create IAM resources"** → **Submit**.
+6. Wait for the status to say **CREATE_COMPLETE** (1–2 minutes; press refresh).
+7. Open the **Outputs** tab and copy **AIHelperAddress** (looks like `https://abc123.lambda-url.us-east-2.on.aws/`).
+8. Send that address (only the address) to whoever maintains the site, or put it in `js/ai-config.js` yourself:
+   ```js
+   window.CODEX_AI_ENDPOINT = 'https://abc123.lambda-url.us-east-2.on.aws/';
+   ```
 
-| Variable name | Value |
+**What the template creates:** a Lambda function (the helper), its public address, a DynamoDB table for the activity log (entries kept 1 year), log files kept 30 days, and the minimum permissions to tie them together.
+
+## Part D. Host the website on Amplify (10 min)
+
+1. In the AWS console, search for **Amplify** → **Create new app** (or **Deploy an app**) → **GitHub** → **Next**.
+2. Authorize AWS to read your GitHub, then choose repository **imago7-ops/Dnd** and branch **main** → **Next**.
+3. Amplify finds `amplify.yml` in the repo (it tells Amplify there's nothing to build). Leave the settings as they are → **Next** → **Save and deploy**.
+4. When it says **Deployed**, copy the address (looks like `https://main.d1a2b3c4.amplifyapp.com`). That's your new site. Every change pushed to GitHub redeploys it automatically.
+5. **Allow the new address to use the AI:** CloudFormation → stack `codex` → **Update** → **Use existing template** → **Next** → change **AllowedOrigins** to both addresses, separated by a comma:
+   `https://imago7-ops.github.io,https://main.d1a2b3c4.amplifyapp.com`
+   Leave every other setting on its existing value → **Next** → **Next** → tick the acknowledgement → **Submit**.
+
+Optional: once you're happy with Amplify, you can turn off GitHub Pages (repo **Settings** → **Pages**). Characters and campaigns are saved per browser **and per site address**, so use **Download** on the old site and **Upload** on the new one to move them.
+
+## Using it
+
+- **Draft with AI:** open a campaign → **Draft with AI** on any section (or **Fill in the blanks with AI** on an entry). Enter your personal access code once; the browser remembers it.
+- **AI activity log:** Campaigns page → **AI activity** → enter the admin code. You'll see each request's time, who made it, what they asked for, which AI and model, whether it worked, and its estimated cost, plus wrong-code attempts and daily-limit hits. **Download as spreadsheet** saves it as a CSV.
+
+## Changing things later
+
+Everything is changed the same way: CloudFormation → `codex` → **Update** → **Use existing template**, edit the setting, submit. For example:
+- Add a person: append `, Taylor=new-code` to **AccessCodes**.
+- Remove someone or change a leaked code: edit **AccessCodes**.
+- New API key: paste it into **AnthropicApiKey** / **OpenAIApiKey**.
+- Cheaper AI: set **AnthropicModel** to `claude-haiku-5-5` or **OpenAIModel** to `gpt-6-luna`.
+
+## What it costs
+
+| Piece | Free allowance | Your likely cost |
+|---|---|---|
+| Lambda (AI helper) | 1 million requests a month | $0 |
+| DynamoDB (activity log) | Pay per request, fractions of a cent | ~$0 |
+| CloudWatch logs (30 days) | 5 GB | $0 |
+| Amplify hosting | 15 GB served a month (first 12 months free) | ~$0 (the whole site is under 1 MB) |
+| Claude / ChatGPT | Pay per use | about 1 cent per draft |
+
+## Security notes
+
+- Your keys and codes are stored as the Lambda function's settings, encrypted by AWS. Anyone who can sign in to your AWS account can see them, so **keep MFA on** and don't share your AWS login.
+- The helper only answers your site's addresses and only for valid access codes, and each person has a daily limit. Wrong-code attempts appear in the activity log.
+- The activity log stores what people asked the AI for, so remind DMs not to type real-world private information into AI requests.
+
+## Removing it
+
+CloudFormation → `codex` → **Delete**. The activity log table is kept on purpose (so you don't lose history); delete it under **DynamoDB** → **Tables** if you want it gone.
+
+## If something goes wrong
+
+| Message on the site | Fix |
 |---|---|
-| `ANTHROPIC_API_KEY` | your Claude key (skip if you're not using Claude) |
-| `OPENAI_API_KEY` | your OpenAI key (skip if you're not using ChatGPT) |
-| `ACCESS_CODE` | a password you make up, e.g. `owlbear-77` |
-
-Click **Deploy** after adding them.
-
-The **access code** is what stops strangers from using your keys: the website is public, so anyone could find the Worker's address, but only people who know the code can make it spend money. Give the code only to DMs you trust, and change it (edit the secret) if it leaks.
-
-Optional settings (type **Text**):
-
-| Variable name | What it does |
-|---|---|
-| `ALLOWED_ORIGINS` | Websites allowed to use the Worker. Default `https://imago7-ops.github.io`. |
-| `ANTHROPIC_MODEL` | Claude model. Default `claude-sonnet-5-5` (good and affordable). |
-| `OPENAI_MODEL` | OpenAI model. Default `gpt-6.1-sol`. |
-| `MAX_TOKENS` | Longest reply allowed. Default `1500`. |
-
-## 4. Connect the website
-
-Send the Worker address from step 2 to whoever maintains the site (or edit `js/ai-config.js` yourself) so it reads:
-
-```js
-window.CODEX_AI_ENDPOINT = 'https://codex-ai.YOUR-NAME.workers.dev';
-```
-
-Once that's pushed, open the site as the DM, open a campaign, click **Draft with AI** on any section, enter the access code once, and draft away.
-
-## 5. Check it's working
-
-Open the Worker address in your browser. You should see a short message saying the site isn't allowed; that's correct (it only answers your website). On the site, the Draft with AI dialog shows "Claude" and/or "ChatGPT" in the AI menu when your keys are in place.
-
-**If something goes wrong**, the dialog shows the message from the AI service, for example:
-- "That access code is not right": re-type the code.
-- "credit balance is too low" or "quota": add credit in that AI's billing page.
-- "not switched on": that AI's key isn't added in step 3.
-
-## Is this allowed?
-
-Yes. Anthropic and OpenAI sell API access so people can build their models into apps and websites. You're responsible for following their usage policies, keeping your keys private, and the costs on your account. The prompts ask the AI for original material rather than text copied from published D&D books.
+| "The AI helper isn't connected to this site yet" | `js/ai-config.js` doesn't have the address yet (Part C, step 8). |
+| "This site is not allowed to use the AI helper" | Add the site's address to **AllowedOrigins** (Part D, step 5). |
+| "That access code is not right" | Check the code in **AccessCodes** (it's case-sensitive). |
+| "You've reached today's AI limit" | Wait until midnight UTC, or raise **DailyLimit**. |
+| "credit balance is too low" / "quota" | Add credit in that AI's billing page. |
+| "Claude/ChatGPT is not switched on" | That AI's key is empty in the stack settings. |

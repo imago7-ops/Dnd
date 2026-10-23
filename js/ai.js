@@ -33,13 +33,13 @@ const AI = (() => {
     return statusCache;
   }
 
-  async function ask({ system, prompt, provider, code }) {
+  async function ask({ system, prompt, provider, code, meta }) {
     let r;
     try {
       r = await fetch(endpoint(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Access-Code': code || '' },
-        body: JSON.stringify({ provider, system, prompt }),
+        body: JSON.stringify({ provider, system, prompt, meta }),
       });
     } catch {
       throw new Error("Couldn't reach the AI helper. Check your internet connection.");
@@ -50,7 +50,7 @@ const AI = (() => {
       err.status = r.status;
       throw err;
     }
-    return String(d.text || '');
+    return { text: String(d.text || ''), who: d.who || '' };
   }
 
   /* Pull the first JSON object out of a reply, even if it's wrapped in a code block. */
@@ -126,7 +126,7 @@ const AI = (() => {
         const rows = opts.fields.filter(([k]) => st.result[k]).map(([k, label]) => `<div class="ai-row"><dt>${esc(label)}</dt><dd>${esc(st.result[k])}</dd></div>`).join('');
         body.innerHTML = `${head()}<div class="modal-body">
           <section class="lu-section">
-            <p class="detail-note">Drafted by ${esc(NAMES[provider] || provider)}. ${fill ? 'These go into the empty fields.' : 'It\'s added as Hidden, and you can edit everything after.'}</p>
+            <p class="detail-note">Drafted by ${esc(NAMES[provider] || provider)}${st.who ? ` for ${esc(st.who)}` : ''}. ${fill ? 'These go into the empty fields.' : 'It\'s added as Hidden, and you can edit everything after.'}</p>
             ${rows ? `<dl class="ai-result">${rows}</dl>` : '<p>The AI had nothing to add. Try again with more detail.</p>'}
           </section></div>
           <footer class="modal-foot">
@@ -176,8 +176,10 @@ const AI = (() => {
       render();
       try {
         const { system, prompt } = opts.buildPrompt(st.request, st.useContext);
-        const text = await ask({ system, prompt, provider, code: s.code });
-        st.result = clean(parseJSON(text), opts.fields);
+        const meta = { ...(opts.meta || {}), action: fill ? 'fill' : 'draft', request: st.request };
+        const res = await ask({ system, prompt, provider, code: s.code, meta });
+        st.who = res.who;
+        st.result = clean(parseJSON(res.text), opts.fields);
         if (fill) Object.keys(st.result).forEach(k => { if (String(opts.current[k] || '').trim()) delete st.result[k]; });
         st.phase = 'result';
       } catch (e) {
@@ -212,5 +214,100 @@ const AI = (() => {
     });
   }
 
-  return { open, settings, endpoint, parseJSON, clean };
+  /* ---------- AI activity log (site owner) ---------- */
+  function openLog() {
+    const host = document.createElement('div');
+    host.className = 'modal-backdrop';
+    host.innerHTML = `<div class="modal ai-modal log-modal" role="dialog" aria-modal="true" aria-labelledby="log-title"><div data-ref="body"></div></div>`;
+    document.body.appendChild(host);
+    const body = host.querySelector('[data-ref="body"]');
+    let entries = null, error = '', loading = false;
+    const close = () => { document.removeEventListener('keydown', onKey); host.remove(); };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    const when = ts => new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    const money = n => (typeof n === 'number' ? `$${n.toFixed(n < 0.01 ? 4 : 3)}` : '');
+    const STATUS = { ok: 'Done', error: 'Failed', denied: 'Wrong code', limited: 'Daily limit' };
+
+    function render() {
+      const s = settings();
+      const total = entries ? entries.reduce((n, e) => n + (e.costUsd || 0), 0) : 0;
+      body.innerHTML = `
+        <header class="modal-head">
+          <div><h2 id="log-title">AI activity</h2><p class="muted">Every AI request: when, who, what and the estimated cost. Newest first.</p></div>
+          <button class="icon-btn" data-act="close" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body">
+          ${!endpoint() ? '<p class="lu-section">The AI helper isn\'t connected to this site yet (see AI-SETUP.md).</p>' : `
+          <form class="log-auth" data-ref="auth">
+            <label class="field"><span>Admin code</span><input type="password" data-ref="admin" value="${esc(s.admin || '')}" autocomplete="off"></label>
+            <button class="btn btn-primary" type="submit" ${loading ? 'disabled' : ''}>${loading ? 'Loading…' : entries ? 'Refresh' : 'Show activity'}</button>
+          </form>
+          ${error ? `<p class="ai-error" role="alert">${esc(error)}</p>` : ''}
+          ${entries ? (entries.length ? `
+            <p class="detail-note">${entries.length} request${entries.length === 1 ? '' : 's'} shown, about ${money(total) || '$0'} in AI costs.</p>
+            <div class="log-wrap"><table class="log-table">
+              <thead><tr><th>When</th><th>Who</th><th>What</th><th>Request</th><th>AI</th><th>Result</th><th>Cost</th></tr></thead>
+              <tbody>${entries.map(e => `<tr class="st-${esc(e.status)}">
+                <td>${esc(when(e.ts))}</td>
+                <td>${esc(e.who || '')}</td>
+                <td>${esc([e.action === 'fill' ? 'Fill in' : 'Draft', e.kind].filter(Boolean).join(' '))}${e.campaign ? `<small>${esc(e.campaign)}</small>` : ''}</td>
+                <td class="log-req">${esc(e.request || '')}</td>
+                <td>${esc(e.model || (e.provider ? NAMES[e.provider] : ''))}</td>
+                <td>${esc(STATUS[e.status] || e.status)}${e.error ? `<small>${esc(e.error)}</small>` : ''}</td>
+                <td>${money(e.costUsd)}</td>
+              </tr>`).join('')}</tbody>
+            </table></div>` : '<p class="detail-note">No AI requests yet.</p>') : ''}`}
+        </div>
+        <footer class="modal-foot">
+          <span class="foot-hint"></span>
+          ${entries && entries.length ? '<button class="btn" data-act="csv">Download as spreadsheet (CSV)</button>' : ''}
+          <button class="btn" data-act="close">Close</button>
+        </footer>`;
+      const form = body.querySelector('[data-ref="auth"]');
+      if (form) form.addEventListener('submit', e => { e.preventDefault(); load(); });
+    }
+
+    async function load() {
+      const code = body.querySelector('[data-ref="admin"]').value.trim();
+      if (!code) { error = 'Enter the admin code from your AWS setup.'; return render(); }
+      loading = true; error = ''; render();
+      try {
+        const url = new URL(`${endpoint()}/`);
+        url.searchParams.set('log', '1');
+        const r = await fetch(url, { headers: { 'X-Admin-Code': code } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || `Couldn't load the log (${r.status}).`);
+        entries = d.entries || [];
+        saveSettings({ admin: code });
+      } catch (e) {
+        error = e.message === 'Failed to fetch' ? "Couldn't reach the AI helper." : e.message;
+        if (/admin code/i.test(error)) saveSettings({ admin: '' });
+      }
+      loading = false;
+      if (host.isConnected) render();
+    }
+
+    function csv() {
+      const cols = ['ts', 'who', 'action', 'kind', 'campaign', 'request', 'provider', 'model', 'status', 'error', 'inTokens', 'outTokens', 'costUsd'];
+      const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const text = [cols.join(','), ...entries.map(e => cols.map(c => q(e[c])).join(','))].join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+      a.download = `ai-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
+    host.addEventListener('click', e => {
+      if (e.target === host) return close();
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.act === 'close') close();
+      if (b.dataset.act === 'csv') csv();
+    });
+    render();
+    if (endpoint() && settings().admin) load();
+  }
+
+  return { open, openLog, settings, endpoint, parseJSON, clean };
 })();

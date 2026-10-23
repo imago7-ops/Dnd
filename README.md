@@ -23,7 +23,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install, no build step, 
 - **Known / Hidden** switch on every entry (new entries start Hidden), with a filter and Reveal all / Hide all per section.
 - Weather entries can roll random conditions for the season. NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
 - Search the whole campaign and download/upload campaigns as `.json` files.
-- **AI drafting (Claude or ChatGPT):** "Draft with AI" on every section turns a few words ("a nervous gnome cartographer who sells forged maps") into a full entry, using the campaign's summary and existing names so it fits your world. "Fill in the blanks with AI" completes only the empty fields of an entry. Needs the one-time setup in [AI-SETUP.md](AI-SETUP.md).
+- **AI drafting (Claude or ChatGPT):** "Draft with AI" on every section turns a few words ("a nervous gnome cartographer who sells forged maps") into a full entry, using the campaign's summary and existing names so it fits your world. "Fill in the blanks with AI" completes only the empty fields of an entry. Runs through your own AI helper on AWS, with a personal access code per person, a daily limit, and an **AI activity** log (when, who, what, which AI, cost) on the Campaigns page. Needs the one-time setup in [AI-SETUP.md](AI-SETUP.md).
 
 ### Party room (both roles)
 - The DM picks a campaign and clicks **Host this campaign's room**. Each campaign has its own 5-character code that stays the same every session. Players open **Party room**, type the code, choose their character and join.
@@ -41,6 +41,8 @@ Everything saves automatically in your browser. Data is per browser and per site
 ## Run it
 
 - **On the web:** https://imago7-ops.github.io/Dnd/ (GitHub Pages, deployed from `main`).
+- **On AWS Amplify:** connect this repo in Amplify (settings are in `amplify.yml`); see [AI-SETUP.md](AI-SETUP.md), Part D.
+- **What changed and when:** see [CHANGELOG.md](CHANGELOG.md).
 - **Locally:** double-click `index.html`.
 
 ## Project layout
@@ -57,7 +59,10 @@ js/character.js    player character sheet (folders)
 js/campaign.js     DM campaigns library and notebook
 js/ai.js           AI drafting dialog (talks to the AI helper)
 js/ai-config.js    address of the AI helper
-server/ai-worker.js  the AI helper: a Cloudflare Worker that keeps API keys secret
+server/aws/index.js          the AI helper (AWS Lambda): keeps API keys secret, logs requests
+server/aws/template.yaml     one-click AWS CloudFormation template (built from index.js)
+server/aws/build-template.py rebuilds template.yaml after editing index.js
+amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)
 js/room.js         party room connections (host, join, sync)
 js/party.js        party room page

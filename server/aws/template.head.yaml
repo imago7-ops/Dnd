@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Campaign Codex AI helper. Keeps your Claude and ChatGPT keys secret, checks each person's
+  access code, logs every AI request (who, when, what, cost) and enforces a daily limit.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: 'AI keys (fill in one or both)' }
+        Parameters: [AnthropicApiKey, OpenAIApiKey]
+      - Label: { default: 'Who can use it' }
+        Parameters: [AccessCodes, AdminCode, AllowedOrigins, DailyLimit]
+      - Label: { default: 'Models (the defaults are fine)' }
+        Parameters: [AnthropicModel, OpenAIModel, MaxTokens]
+
+Parameters:
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Your Claude API key (starts with sk-ant-). Leave empty to switch Claude off.
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Your OpenAI API key (starts with sk-). Leave empty to switch ChatGPT off.
+  AccessCodes:
+    Type: String
+    NoEcho: true
+    MinLength: 3
+    Description: 'One code per person as Name=code, separated by commas. Example: Josiah=owlbear-77, Sam=mimic-12'
+  AdminCode:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: A separate password (8+ characters) for viewing the AI activity log on the site.
+  AllowedOrigins:
+    Type: String
+    Default: https://imago7-ops.github.io
+    Description: Website addresses allowed to use the AI, separated by commas (add your Amplify address later).
+  DailyLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    Description: Most AI requests each person can make per day (UTC).
+  AnthropicModel:
+    Type: String
+    Default: claude-sonnet-5-5
+    Description: Claude model. claude-haiku-5-5 is cheaper; claude-opus-5-5 is stronger.
+  OpenAIModel:
+    Type: String
+    Default: gpt-6.1-sol
+    Description: OpenAI model. gpt-6-luna is cheaper.
+  MaxTokens:
+    Type: Number
+    Default: 1500
+    MinValue: 100
+    MaxValue: 4000
+    Description: Longest reply allowed, in tokens.
+
+Resources:
+  LogTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      TimeToLiveSpecification: { AttributeName: expires, Enabled: true }
+      SSESpecification: { SSEEnabled: true }
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: activity-log
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:Query, dynamodb:UpdateItem]
+                Resource: !GetAtt LogTable.Arn
+
+  FunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-ai
+      RetentionInDays: 30
+
+  AIFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionLogs
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ai
+      Description: Campaign Codex AI helper
+      Runtime: nodejs22.x
+      Handler: index.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt FunctionRole.Arn
+      Environment:
+        Variables:
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          ACCESS_CODES: !Ref AccessCodes
+          ADMIN_CODE: !Ref AdminCode
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          DAILY_LIMIT: !Ref DailyLimit
+          ANTHROPIC_MODEL: !Ref AnthropicModel
+          OPENAI_MODEL: !Ref OpenAIModel
+          MAX_TOKENS: !Ref MaxTokens
+          LOG_TABLE: !Ref LogTable
+      Code:
+        ZipFile: |
+__CODE__
+
+  AIFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: NONE
+      TargetFunctionArn: !GetAtt AIFunction.Arn
+
+  PublicUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AIFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  PublicInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AIFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+Outputs:
+  AIHelperAddress:
+    Description: Paste this into js/ai-config.js (or send it to whoever maintains the site).
+    Value: !GetAtt AIFunctionUrl.FunctionUrl
+  ActivityLogTable:
+    Description: DynamoDB table holding the AI activity log.
+    Value: !Ref LogTable

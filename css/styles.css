@@ -946,6 +946,18 @@ a.btn-primary { color: var(--accent-ink); }
 .ai-row dt { font-size: .8rem; color: var(--faint); }
 .ai-row dd { margin: 2px 0 0; white-space: pre-wrap; }
 
+.log-modal { width: min(1100px, 100%); }
+.log-auth { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; padding: 14px 0 6px; }
+.log-auth .field { flex: 1; min-width: 200px; max-width: 320px; }
+.log-wrap { overflow-x: auto; margin: 8px 0 12px; border: 1px solid var(--line-soft); border-radius: var(--r); }
+.log-table { width: 100%; border-collapse: collapse; font-size: .88rem; min-width: 820px; }
+.log-table th { text-align: left; font-weight: 500; color: var(--faint); padding: 8px 10px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+.log-table td { padding: 8px 10px; vertical-align: top; border-top: 1px solid var(--line-soft); }
+.log-table td small { display: block; color: var(--faint); font-size: .78rem; }
+.log-table .log-req { max-width: 260px; color: var(--muted); }
+.log-table tr.st-error td, .log-table tr.st-denied td { color: #f2a598; }
+.log-table tr.st-limited td { color: var(--gold); }
+
 /* ---------- Toasts ---------- */
 #toasts { position: fixed; left: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; pointer-events: none; }
 .toast {

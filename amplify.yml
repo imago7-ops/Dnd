@@ -1,0 +1,16 @@
+# AWS Amplify Hosting settings for Campaign Codex.
+# The site is plain HTML/CSS/JS, so there's nothing to build: Amplify just publishes the files.
+version: 1
+frontend:
+  phases:
+    build:
+      commands:
+        - echo "Static site, no build step"
+  artifacts:
+    baseDirectory: /
+    files:
+      - 'index.html'
+      - 'css/**/*'
+      - 'js/**/*'
+  cache:
+    paths: []
