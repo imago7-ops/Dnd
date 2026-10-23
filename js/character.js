@@ -36,7 +36,7 @@ const Character = (() => {
       hitDice: '1d8',
       deathSaves: { success: 0, fail: 0 },
       attacks: [{ id: Util.uid(), name: 'Unarmed strike', bonus: 2, damage: '1' }],
-      features: '', equipment: '', spells: '', notes: '',
+      features: '', proficiencies: '', equipment: '', spells: '', notes: '',
     };
   }
 
@@ -86,12 +86,23 @@ const Character = (() => {
     mountSheet(el);
   }
 
+  /* Open the step-by-step creator; it hands back a finished character. */
   function createNew(el) {
-    const c = blank();
-    Store.state.characters.push(c);
-    Store.state.activeCharacterId = c.id;
-    Store.save();
-    mountSheet(el, true);
+    const host = document.createElement('div');
+    el.onclick = el.oninput = el.onchange = null;
+    el.replaceChildren(host);
+    (el.closest('.main') || document.scrollingElement).scrollTop = 0;
+    Creator.mount(host, {
+      onDone(c, isBlank) {
+        Store.state.characters.push(c);
+        Store.state.activeCharacterId = c.id;
+        Store.save();
+        mountSheet(el, isBlank || !c.name);
+        (el.closest('.main') || document.scrollingElement).scrollTop = 0;
+        if (!isBlank) Util.toast(`${c.name || 'Your character'} is ready. Everything on the sheet can still be edited.`);
+      },
+      onCancel() { mount(el); },
+    });
   }
 
   async function upload(el) {
@@ -116,7 +127,7 @@ const Character = (() => {
         <div class="start-grid">
           <button class="start-card" data-action="new">
             <span class="start-title">Create a new character</span>
-            <span class="start-desc">Fill in a blank sheet. Roll ability scores or use the standard array, and every bonus works itself out.</span>
+            <span class="start-desc">Choose your species, background, class, subclass and level. Your hit points, armor class, skills, attacks, features and spells fill themselves in.</span>
           </button>
           <button class="start-card" data-action="upload">
             <span class="start-title">Upload a character file</span>
@@ -299,7 +310,8 @@ const Character = (() => {
         </section>
 
         <section class="sheet-notes">
-          ${noteBox('Features & traits', 'features', c.features, 'Class features, species traits, feats…')}
+          ${noteBox('Features & traits', 'features', c.features, 'Class features, species traits, feats…', 'wide')}
+          ${noteBox('Proficiencies & languages', 'proficiencies', c.proficiencies, 'Armor, weapons, tools, languages…')}
           ${noteBox('Equipment', 'equipment', c.equipment, 'Armor, weapons, gear, coin…')}
           ${noteBox('Spells', 'spells', c.spells, 'Spell slots, cantrips, prepared spells…')}
           ${noteBox('Notes', 'notes', c.notes, 'Backstory, allies, goals, session notes…')}
@@ -312,8 +324,8 @@ const Character = (() => {
     if (focusName) el.querySelector('.char-name').focus();
   }
 
-  function noteBox(title, key, value, ph) {
-    return `<label class="panel note-box">
+  function noteBox(title, key, value, ph, cls = '') {
+    return `<label class="panel note-box ${cls}">
       <h2>${title}</h2>
       <textarea data-bind="${key}" placeholder="${ph}" rows="4">${Util.esc(value)}</textarea>
     </label>`;
