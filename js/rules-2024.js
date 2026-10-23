@@ -2,8 +2,8 @@
 
 /*
  * D&D 5e (2024 rules) data used by the character creator.
- * Feature names follow the 2024 Player's Handbook; descriptions are short summaries,
- * so check your book for exact wording.
+ * Feature names follow the 2024 Player's Handbook and other official books;
+ * descriptions are short summaries, so check your book for exact wording.
  */
 const Rules = (() => {
   const ABIL = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
@@ -269,10 +269,10 @@ const Rules = (() => {
         16: [ASI], 17: [SUB], 19: ['Epic Boon'], 20: ['Greater Divine Intervention'],
       },
       subclasses: {
-        'Knowledge Domain': { 3: ['Blessings of Knowledge', 'Knowledge Domain Spells', 'Mind Magic'], 6: ['Unfettered Mind'], 17: ['Divine Foreknowledge'] },
         'Life Domain': { 3: ['Disciple of Life', 'Life Domain Spells', 'Preserve Life'], 6: ['Blessed Healer'], 17: ['Supreme Healing'] },
         'Light Domain': { 3: ['Light Domain Spells', 'Radiance of the Dawn', 'Warding Flare'], 6: ['Improved Warding Flare'], 17: ['Corona of Light'] },
         'Trickery Domain': { 3: ['Blessing of the Trickster', 'Invoke Duplicity', 'Trickery Domain Spells'], 6: ["Trickster's Transposition"], 17: ['Improved Duplicity'] },
+        'War Domain': { 3: ['Guided Strike', 'War Domain Spells', 'War Priest'], 6: ["War God's Blessing"], 17: ['Avatar of Battle'] },
       },
       stats(l) {
         return l >= 2 ? [`Channel Divinity: ${l < 6 ? 2 : l < 18 ? 3 : 4} uses per long rest (regain one on a short rest)`] : [];
@@ -517,6 +517,137 @@ const Rules = (() => {
       },
     },
   };
+
+
+  /*
+   * Subclasses from other official books. Older (2014-era) subclasses are shifted onto the
+   * 2024 subclass levels: anything they gave at level 1 or 2 arrives at level 3. Cleric
+   * features from level 8 are left out because 2024 clerics get Blessed Strikes at 7.
+   * Entries marked `details: false` list where features land but not their names.
+   */
+  const XGE = "Xanathar's Guide to Everything", TCE = "Tasha's Cauldron of Everything",
+    SCAG = "Sword Coast Adventurer's Guide", PHB14 = "Player's Handbook (2014)", DMG14 = "Dungeon Master's Guide (2014)",
+    EGW = 'Explorer’s Guide to Wildemount', FTD = "Fizban's Treasury of Dragons", VRGR = "Van Richten's Guide to Ravenloft",
+    BGG = 'Bigby Presents: Glory of the Giants', DSDQ = 'Dragonlance: Shadow of the Dragon Queen', HOF = 'Forgotten Realms: Heroes of Faerûn';
+
+  const MORE_SUBCLASSES = {
+    Barbarian: {
+      'Path of the Ancestral Guardian': [XGE, { 3: ['Ancestral Protectors'], 6: ['Spirit Shield'], 10: ['Consult the Spirits'], 14: ['Vengeful Ancestors'] }],
+      'Path of the Battlerager': [SCAG, { 3: ['Battlerager Armor'], 6: ['Reckless Abandon'], 10: ['Battlerager Charge'], 14: ['Spiked Retribution'] }],
+      'Path of the Beast': [TCE, { 3: ['Form of the Beast'], 6: ['Bestial Soul'], 10: ['Infectious Fury'], 14: ['Call the Hunt'] }],
+      'Path of the Giant': [BGG, { 3: ["Giant's Power", "Giant's Havoc"], 6: ['Elemental Cleaver'], 10: ['Mighty Impel'], 14: ['Demiurgic Colossus'] }],
+      'Path of the Storm Herald': [XGE, { 3: ['Storm Aura'], 6: ['Storm Soul'], 10: ['Shielding Storm'], 14: ['Raging Storm'] }],
+      'Path of the Totem Warrior': [PHB14, { 3: ['Spirit Seeker', 'Totem Spirit'], 6: ['Aspect of the Beast'], 10: ['Spirit Walker'], 14: ['Totemic Attunement'] }],
+      'Path of Wild Magic': [TCE, { 3: ['Magic Awareness', 'Wild Surge'], 6: ['Bolstering Magic'], 10: ['Unstable Backlash'], 14: ['Controlled Surge'] }],
+    },
+    Bard: {
+      'College of Creation': [TCE, { 3: ['Mote of Potential', 'Performance of Creation'], 6: ['Animating Performance'], 14: ['Creative Crescendo'] }],
+      'College of Eloquence': [TCE, { 3: ['Silver Tongue', 'Unsettling Words'], 6: ['Unfailing Inspiration', 'Universal Speech'], 14: ['Infectious Inspiration'] }],
+      'College of Spirits': [VRGR, { 3: ['Guiding Whispers', 'Spiritual Focus', 'Tales from Beyond'], 6: ['Spirit Session'], 14: ['Mystical Connection'] }],
+      'College of Swords': [XGE, { 3: ['Bonus Proficiencies', 'Fighting Style', 'Blade Flourish'], 6: ['Extra Attack'], 14: ["Master's Flourish"] }],
+      'College of Whispers': [XGE, { 3: ['Psychic Blades', 'Words of Terror'], 6: ['Mantle of Whispers'], 14: ['Shadow Lore'] }],
+      'College of the Moon': [HOF, { 3: ["Moon's Inspiration", 'Primal Lore'], 6: ['Blessing of Moonlight'], 14: ["Eventide's Splendor"] }],
+    },
+    Cleric: {
+      'Arcana Domain': [SCAG, { 3: ['Domain Spells', 'Arcane Initiate', 'Channel Divinity: Arcane Abjuration'], 6: ['Spell Breaker'], 17: ['Arcane Mastery'] }],
+      'Death Domain': [DMG14, { 3: ['Domain Spells', 'Bonus Proficiency', 'Reaper', 'Channel Divinity: Touch of Death'], 6: ['Inescapable Destruction'], 17: ['Improved Reaper'] }],
+      'Forge Domain': [XGE, { 3: ['Domain Spells', 'Bonus Proficiencies', 'Blessing of the Forge', "Channel Divinity: Artisan's Blessing"], 6: ['Soul of the Forge'], 17: ['Saint of Forge and Fire'] }],
+      'Grave Domain': [XGE, { 3: ['Domain Spells', 'Circle of Mortality', 'Eyes of the Grave', 'Channel Divinity: Path to the Grave'], 6: ["Sentinel at Death's Door"], 17: ['Keeper of Souls'] }],
+      'Knowledge Domain': [HOF, null],
+      'Nature Domain': [PHB14, { 3: ['Domain Spells', 'Acolyte of Nature', 'Bonus Proficiency', 'Channel Divinity: Charm Animals and Plants'], 6: ['Dampen Elements'], 17: ['Master of Nature'] }],
+      'Order Domain': [TCE, { 3: ['Domain Spells', 'Bonus Proficiencies', 'Voice of Authority', "Channel Divinity: Order's Demand"], 6: ['Embodiment of the Law'], 17: ["Order's Wrath"] }],
+      'Peace Domain': [TCE, { 3: ['Domain Spells', 'Implement of Peace', 'Emboldening Bond', 'Channel Divinity: Balm of Peace'], 6: ['Protective Bond'], 17: ['Expansive Bond'] }],
+      'Tempest Domain': [PHB14, { 3: ['Domain Spells', 'Bonus Proficiencies', 'Wrath of the Storm', 'Channel Divinity: Destructive Wrath'], 6: ['Thunderbolt Strike'], 17: ['Stormborn'] }],
+      'Twilight Domain': [TCE, { 3: ['Domain Spells', 'Bonus Proficiencies', 'Eyes of Night', 'Vigilant Blessing', 'Channel Divinity: Twilight Sanctuary'], 6: ['Steps of Night'], 17: ['Twilight Shroud'] }],
+    },
+    Druid: {
+      'Circle of Dreams': [XGE, { 3: ['Balm of the Summer Court'], 6: ['Hearth of Moonlight and Shadow'], 10: ['Hidden Paths'], 14: ['Walker in Dreams'] }],
+      'Circle of the Shepherd': [XGE, { 3: ['Speech of the Woods', 'Spirit Totem'], 6: ['Mighty Summoner'], 10: ['Guardian Spirit'], 14: ['Faithful Summons'] }],
+      'Circle of Spores': [TCE, { 3: ['Circle Spells', 'Halo of Spores', 'Symbiotic Entity'], 6: ['Fungal Infestation'], 10: ['Spreading Spores'], 14: ['Fungal Body'] }],
+      'Circle of Wildfire': [TCE, { 3: ['Circle Spells', 'Summon Wildfire Spirit'], 6: ['Enhanced Bond'], 10: ['Cauterizing Flames'], 14: ['Blazing Revival'] }],
+    },
+    Fighter: {
+      'Arcane Archer': [XGE, { 3: ['Arcane Archer Lore', 'Arcane Shot'], 7: ['Curving Shot', 'Magic Arrow'], 10: ['Additional Arcane Shot option'], 15: ['Ever-Ready Shot'], 18: ['Improved Arcane Shots'] }],
+      'Cavalier': [XGE, { 3: ['Bonus Proficiency', 'Born to the Saddle', 'Unwavering Mark'], 7: ['Warding Maneuver'], 10: ['Hold the Line'], 15: ['Ferocious Charger'], 18: ['Vigilant Defender'] }],
+      'Echo Knight': [EGW, { 3: ['Manifest Echo', 'Unleash Incarnation'], 7: ['Echo Avatar'], 10: ['Shadow Martyr'], 15: ['Reclaim Potential'], 18: ['Legion of One'] }],
+      'Purple Dragon Knight (Banneret)': [HOF, null],
+      'Rune Knight': [TCE, { 3: ['Bonus Proficiencies', 'Rune Carver', "Giant's Might"], 7: ['Runic Shield'], 10: ['Great Stature'], 15: ['Master of Runes'], 18: ['Runic Juggernaut'] }],
+      'Samurai': [XGE, { 3: ['Bonus Proficiency', 'Fighting Spirit'], 7: ['Elegant Courtier'], 10: ['Tireless Spirit'], 15: ['Rapid Strike'], 18: ['Strength before Death'] }],
+    },
+    Monk: {
+      'Way of the Ascendant Dragon': [FTD, { 3: ['Draconic Disciple', 'Breath of the Dragon'], 6: ['Wings Unfurled'], 11: ['Aspect of the Wyrm'], 17: ['Ascendant Aspect'] }],
+      'Way of the Astral Self': [TCE, { 3: ['Arms of the Astral Self'], 6: ['Visage of the Astral Self'], 11: ['Body of the Astral Self'], 17: ['Awakened Astral Self'] }],
+      'Way of the Drunken Master': [XGE, { 3: ['Bonus Proficiencies', 'Drunken Technique'], 6: ['Tipsy Sway'], 11: ["Drunkard's Luck"], 17: ['Intoxicated Frenzy'] }],
+      'Way of the Kensei': [XGE, { 3: ['Path of the Kensei'], 6: ['One with the Blade'], 11: ['Sharpen the Blade'], 17: ['Unerring Accuracy'] }],
+      'Way of the Long Death': [SCAG, { 3: ['Touch of Death'], 6: ['Hour of Reaping'], 11: ['Mastery of Death'], 17: ['Touch of the Long Death'] }],
+      'Way of the Sun Soul': [XGE, { 3: ['Radiant Sun Bolt'], 6: ['Searing Arc Strike'], 11: ['Searing Sunburst'], 17: ['Sun Shield'] }],
+    },
+    Paladin: {
+      'Oath of Conquest': [XGE, { 3: ['Oath Spells', 'Channel Divinity: Conquering Presence, Guided Strike'], 7: ['Aura of Conquest'], 15: ['Scornful Rebuke'], 20: ['Invincible Conqueror'] }],
+      'Oath of the Crown': [SCAG, { 3: ['Oath Spells', 'Channel Divinity: Champion Challenge, Turn the Tide'], 7: ['Divine Allegiance'], 15: ['Unyielding Spirit'], 20: ['Exalted Champion'] }],
+      'Oath of the Noble Genies': [HOF, null],
+      'Oath of Redemption': [XGE, { 3: ['Oath Spells', 'Channel Divinity: Emissary of Peace, Rebuke the Violent'], 7: ['Aura of the Guardian'], 15: ['Protective Spirit'], 20: ['Emissary of Redemption'] }],
+      'Oath of the Watchers': [TCE, { 3: ['Oath Spells', "Channel Divinity: Watcher's Will, Abjure the Extraplanar"], 7: ['Aura of the Sentinel'], 15: ['Vigilant Rebuke'], 20: ['Mortal Bulwark'] }],
+      'Oathbreaker': [DMG14, { 3: ['Oathbreaker Spells', 'Channel Divinity: Control Undead, Dreadful Aspect'], 7: ['Aura of Hate'], 15: ['Supernatural Resistance'], 20: ['Dread Lord'] }],
+    },
+    Ranger: {
+      'Drakewarden': [FTD, { 3: ['Draconic Gift', 'Drake Companion'], 7: ['Bond of Fang and Scale'], 11: ["Drake's Breath"], 15: ['Perfected Bond'] }],
+      'Horizon Walker': [XGE, { 3: ['Horizon Walker Magic', 'Detect Portal', 'Planar Warrior'], 7: ['Ethereal Step'], 11: ['Distant Strike'], 15: ['Spectral Defense'] }],
+      'Monster Slayer': [XGE, { 3: ['Monster Slayer Magic', "Hunter's Sense", "Slayer's Prey"], 7: ['Supernatural Defense'], 11: ["Magic-User's Nemesis"], 15: ["Slayer's Counter"] }],
+      'Swarmkeeper': [TCE, { 3: ['Gathered Swarm', 'Swarmkeeper Magic'], 7: ['Writhing Tide'], 11: ['Mighty Swarm'], 15: ['Swarming Dispersal'] }],
+      'Winter Walker': [HOF, null],
+    },
+    Rogue: {
+      'Inquisitive': [XGE, { 3: ['Ear for Deceit', 'Eye for Detail', 'Insightful Fighting'], 9: ['Steady Eye'], 13: ['Unerring Eye'], 17: ['Eye for Weakness'] }],
+      'Mastermind': [XGE, { 3: ['Master of Intrigue', 'Master of Tactics'], 9: ['Insightful Manipulator'], 13: ['Misdirection'], 17: ['Soul of Deceit'] }],
+      'Phantom': [TCE, { 3: ['Whispers of the Dead', 'Wails from the Grave'], 9: ['Tokens of the Departed'], 13: ['Ghost Walk'], 17: ["Death's Friend"] }],
+      'Scion of the Three': [HOF, null],
+      'Scout': [XGE, { 3: ['Skirmisher', 'Survivalist'], 9: ['Superior Mobility'], 13: ['Ambush Master'], 17: ['Sudden Strike'] }],
+      'Swashbuckler': [XGE, { 3: ['Fancy Footwork', 'Rakish Audacity'], 9: ['Panache'], 13: ['Elegant Maneuver'], 17: ['Master Duelist'] }],
+    },
+    Sorcerer: {
+      'Divine Soul': [XGE, { 3: ['Divine Magic', 'Favored by the Gods'], 6: ['Empowered Healing'], 14: ['Otherworldly Wings'], 18: ['Unearthly Recovery'] }],
+      'Lunar Sorcery': [DSDQ, { 3: ['Lunar Embodiment', 'Moon Fire'], 6: ['Lunar Boons', 'Waxing and Waning'], 14: ['Lunar Empowerment'], 18: ['Lunar Phenomenon'] }],
+      'Shadow Magic': [XGE, { 3: ['Eyes of the Dark', 'Strength of the Grave'], 6: ['Hound of Ill Omen'], 14: ['Shadow Walk'], 18: ['Umbral Form'] }],
+      'Spellfire Sorcery': [HOF, null],
+      'Storm Sorcery': [XGE, { 3: ['Wind Speaker', 'Tempestuous Magic'], 6: ['Heart of the Storm', 'Storm Guide'], 14: ["Storm's Fury"], 18: ['Wind Soul'] }],
+    },
+    Warlock: {
+      'The Fathomless': [TCE, { 3: ['Tentacle of the Deeps', 'Gift of the Sea'], 6: ['Oceanic Soul', 'Guardian Coil'], 10: ['Grasping Tentacles'], 14: ['Fathomless Plunge'] }],
+      'The Genie': [TCE, { 3: ["Genie's Vessel"], 6: ['Elemental Gift'], 10: ['Sanctuary Vessel'], 14: ['Limited Wish'] }],
+      'The Hexblade': [XGE, { 3: ["Hexblade's Curse", 'Hex Warrior'], 6: ['Accursed Specter'], 10: ['Armor of Hexes'], 14: ['Master of Hexes'] }],
+      'The Undead': [VRGR, { 3: ['Form of Dread'], 6: ['Grave Touched'], 10: ['Necrotic Husk'], 14: ['Spirit Projection'] }],
+      'The Undying': [SCAG, { 3: ['Among the Dead'], 6: ['Defy Death'], 10: ['Undying Nature'], 14: ['Indestructible Life'] }],
+    },
+    Wizard: {
+      'Bladesinger': [HOF, null],
+      'Chronurgy Magic': [EGW, { 3: ['Chronal Shift', 'Temporal Awareness'], 6: ['Momentary Stasis'], 10: ['Arcane Abeyance'], 14: ['Convergent Future'] }],
+      'School of Conjuration': [PHB14, { 3: ['Conjuration Savant', 'Minor Conjuration'], 6: ['Benign Transposition'], 10: ['Focused Conjuration'], 14: ['Durable Summons'] }],
+      'School of Enchantment': [PHB14, { 3: ['Enchantment Savant', 'Hypnotic Gaze'], 6: ['Instinctive Charm'], 10: ['Split Enchantment'], 14: ['Alter Memories'] }],
+      'Graviturgy Magic': [EGW, { 3: ['Adjust Density'], 6: ['Gravity Well'], 10: ['Violent Attraction'], 14: ['Event Horizon'] }],
+      'School of Necromancy': [PHB14, { 3: ['Necromancy Savant', 'Grim Harvest'], 6: ['Undead Thralls'], 10: ['Inured to Undeath'], 14: ['Command Undead'] }],
+      'Order of Scribes': [TCE, { 3: ['Wizardly Quill', 'Awakened Spellbook'], 6: ['Manifest Mind'], 10: ['Master Scrivener'], 14: ['One with the Word'] }],
+      'School of Transmutation': [PHB14, { 3: ['Transmutation Savant', 'Minor Alchemy'], 6: ["Transmuter's Stone"], 10: ['Shapechanger'], 14: ['Master Transmuter'] }],
+      'War Magic': [XGE, { 3: ['Arcane Deflection', 'Tactical Wit'], 6: ['Power Surge'], 10: ['Durable Magic'], 14: ['Deflecting Shroud'] }],
+    },
+  };
+
+  /* Normalise every class's subclasses to { source, features, details }. */
+  const PHB24 = "Player's Handbook (2024)";
+  Object.entries(CLASSES).forEach(([name, cl]) => {
+    const subLevels = Object.entries(cl.features)
+      .filter(([, list]) => list.some(f => f === 'Subclass feature' || / Subclass$/.test(f)))
+      .map(([lv]) => Number(lv));
+    const out = {};
+    Object.entries(cl.subclasses).forEach(([sub, features]) => { out[sub] = { source: PHB24, features, details: true }; });
+    Object.entries(MORE_SUBCLASSES[name] || {}).forEach(([sub, [source, features]]) => {
+      out[sub] = features
+        ? { source, features, details: true }
+        : { source, details: false, features: Object.fromEntries(subLevels.map(lv => [lv, [`${sub} feature (see ${source})`]])) };
+    });
+    cl.subclasses = out;
+    cl.subclassLevels = subLevels;
+  });
 
   /* Spell slots for a full caster at each level (index 0 = level 1). */
   const FULL_SLOTS = [

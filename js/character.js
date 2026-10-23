@@ -184,7 +184,7 @@ const Character = (() => {
           <input class="char-name" data-bind="name" value="${Util.esc(c.name)}" placeholder="Character name" aria-label="Character name">
           <div class="identity-grid">
             ${field('Class', 'className', c.className, { list: 'dl-classes', span: 2 })}
-            ${field('Subclass', 'subclass', c.subclass, { span: 2 })}
+            ${field('Subclass', 'subclass', c.subclass, { span: 2, list: 'dl-subclasses' })}
             ${field('Level', 'level', c.level, { type: 'number', attrs: 'min="1" max="20"', cls: 'narrow' })}
             ${field('Species', 'species', c.species, { list: 'dl-species', span: 2 })}
             ${field('Background', 'background', c.background, { span: 3 })}
@@ -192,6 +192,7 @@ const Character = (() => {
             ${field('XP', 'xp', c.xp, { type: 'number', attrs: 'min="0"', cls: 'narrow' })}
           </div>
           <datalist id="dl-classes">${Object.keys(CLASSES).map(x => `<option value="${x}">`).join('')}</datalist>
+          <datalist id="dl-subclasses">${subclassOptions(c.className)}</datalist>
           <datalist id="dl-species">${SPECIES.map(x => `<option value="${x}">`).join('')}</datalist>
           <datalist id="dl-align">${ALIGNMENTS.map(x => `<option value="${x}">`).join('')}</datalist>
         </header>
@@ -324,6 +325,11 @@ const Character = (() => {
     if (focusName) el.querySelector('.char-name').focus();
   }
 
+  function subclassOptions(className) {
+    const cl = typeof Rules !== 'undefined' && Rules.CLASSES[className];
+    return cl ? Object.keys(cl.subclasses).map(x => `<option value="${Util.esc(x)}">`).join('') : '';
+  }
+
   function noteBox(title, key, value, ph, cls = '') {
     return `<label class="panel note-box ${cls}">
       <h2>${title}</h2>
@@ -389,6 +395,10 @@ const Character = (() => {
         if (t.dataset.bind === 'name') {
           const opt = el.querySelector(`select[data-action="switch"] option[value="${c.id}"]`);
           if (opt) opt.textContent = c.name || 'Unnamed character';
+        }
+        if (t.dataset.bind === 'className') {
+          const dl = el.querySelector('#dl-subclasses');
+          if (dl) dl.innerHTML = subclassOptions(t.value);
         }
         if (t.dataset.bind === 'className' && CLASSES[t.value] && /^\d+d\d+$/.test(c.hitDice)) {
           c.hitDice = `${c.level}d${CLASSES[t.value]}`;

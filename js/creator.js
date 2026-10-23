@@ -12,13 +12,15 @@ const Creator = (() => {
   const esc = Util.esc;
   const fmt = Util.fmtMod;
   const modOf = s => Math.floor((s - 10) / 2);
+  const NEW_BOOKS = ["Player's Handbook (2024)", 'Forgotten Realms: Heroes of Faer\u00fbn'];
+  const OLDER = entry => entry && !NEW_BOOKS.includes(entry.source);
 
   function fresh() {
     return {
       species: null, lineage: null, size: null, humanFeat: 'Skilled',
       background: null, bgMode: '21', plus2: null, plus1: null, bgTouched: false,
       className: null, skills: [], extraSkill: null,
-      level: 1, subclass: '',
+      level: 1, subclass: '', subMode: 'list', subOther: '',
       method: 'standard', base: null, rolled: null, scoresTouched: false,
       name: '',
     };
@@ -140,7 +142,9 @@ const Creator = (() => {
 
   function classFeatureLines(ch) {
     const cl = R.CLASSES[ch.className];
-    const sub = ch.level >= 3 && ch.subclass ? cl.subclasses[ch.subclass] : null;
+    const entry = ch.level >= 3 && ch.subclass ? cl.subclasses[ch.subclass] : null;
+    const sub = entry ? entry.features : null;
+    const custom = ch.level >= 3 && ch.subclass && !entry;
     const lines = [];
     for (let lv = 1; lv <= ch.level; lv++) {
       const names = [];
@@ -148,6 +152,7 @@ const Creator = (() => {
         const isSubSlot = f === 'Subclass feature' || / Subclass$/.test(f);
         if (!isSubSlot) return names.push(f);
         if (sub && sub[lv]) names.push(`${ch.subclass}: ${sub[lv].join(', ')}`);
+        else if (custom) names.push(`${ch.subclass} feature (homebrew: add the details)`);
         else names.push(lv === 3 ? `${ch.className} subclass (choose one)` : 'Subclass feature');
       });
       if (names.length) lines.push(`Level ${lv}: ${names.join('; ')}`);
@@ -239,6 +244,9 @@ const Creator = (() => {
     sp.traits.forEach(([name, text]) => f.push(`- ${name}: ${fillTrait(text, ch)}`));
     f.push('');
     f.push(`${ch.className} ${L}${c.subclass ? ` (${c.subclass})` : ''}`);
+    const subEntry = c.subclass ? cl.subclasses[c.subclass] : null;
+    if (subEntry) f.push(`- Subclass from ${subEntry.source}${OLDER(subEntry) ? ' (written for 2014 rules; earlier features arrive at level 3)' : ''}`);
+    else if (c.subclass) f.push('- Homebrew subclass: add its features below');
     cl.stats(L, { mod: a => modOf(scores[a]) }).forEach(s => f.push(`- ${s}`));
     classFeatureLines(ch).forEach(s => f.push(s));
     if (L >= 4) f.push('Ability Score Improvements are listed by level; add them to your scores yourself.');
@@ -476,6 +484,8 @@ const Creator = (() => {
       const cl = R.CLASSES[ch.className];
       const L = ch.level;
       const subs = Object.entries(cl.subclasses);
+      const core = subs.filter(([, e]) => e.source === "Player's Handbook (2024)");
+      const more = subs.filter(([, e]) => e.source !== "Player's Handbook (2024)").sort((a, b) => a[0].localeCompare(b[0]));
       const locked = L < 3;
       const preview = classFeatureLines(ch);
       return `<h2 class="step-title">Choose a level and subclass</h2>
@@ -494,17 +504,50 @@ const Creator = (() => {
 
         <h3 class="sub-title">${ch.className} subclass</h3>
         ${locked ? `<p class="detail-note">Every class picks a subclass at level 3. Raise your level to choose one now, or pick it on your sheet later.</p>` : ''}
+        <h4 class="group-title">Player's Handbook (2024)</h4>
         <div class="opt-grid subs">
-          ${subs.map(([name, feats]) => card(name, name,
-            Object.entries(feats).map(([lv, f]) => `<span class="lv">Level ${lv}</span> ${esc(f.join(', '))}`).join('<br>'),
-            '', ch.subclass === name, locked, 'sub')).join('')}
-          ${locked ? '' : card('', 'Decide later', 'Leave the subclass blank for now.', '', !ch.subclass, false, 'sub')}
+          ${core.map(([name]) => subCard(name, '', locked)).join('')}
         </div>
+        <h4 class="group-title">Other official books</h4>
+        <div class="opt-grid subs">
+          ${more.map(([name, e]) => subCard(name, e.source, locked)).join('')}
+        </div>
+        ${locked ? '' : `<h4 class="group-title">Something else</h4>
+        <div class="opt-grid subs">
+          ${card('__other__', 'Other / homebrew', 'Type in any subclass name.', '', ch.subMode === 'other', false, 'sub')}
+          ${card('', 'Decide later', 'Leave the subclass blank for now.', '', ch.subMode !== 'other' && !ch.subclass, false, 'sub')}
+        </div>`}
+        ${locked ? '' : subDetail(cl)}
 
         <div class="opt-detail panel">
           <h3>Features you'll have at level ${L}</h3>
           <ul class="trait-list compact">${preview.map(p => `<li>${esc(p)}</li>`).join('')}</ul>
         </div>`;
+    }
+
+    function subCard(name, source, locked) {
+      return card(name, name, source ? esc(source) : '', '', ch.subMode !== 'other' && ch.subclass === name, locked, 'sub');
+    }
+
+    function subDetail(cl) {
+      if (ch.subMode === 'other') {
+        return `<div class="opt-detail panel">
+          <h3>Other / homebrew subclass</h3>
+          <label class="field name-field"><span>Subclass name</span>
+            <input data-set="subOther" value="${esc(ch.subOther)}" placeholder="e.g. Oath of the Tides" autocomplete="off">
+          </label>
+          <p class="detail-note">Your sheet will mark the levels where ${esc(ch.className)} subclass features arrive (${cl.subclassLevels.join(', ')}). Add your homebrew features in the Features box on the sheet.</p>
+        </div>`;
+      }
+      const e = ch.subclass && cl.subclasses[ch.subclass];
+      if (!e) return '';
+      return `<div class="opt-detail panel">
+        <h3>${esc(ch.subclass)}</h3>
+        <p class="detail-note">From ${esc(e.source)}.${OLDER(e) ? ' Written for the 2014 rules: features it gave at levels 1 or 2 arrive at level 3 here, so check the book for exact wording.' : ''}${!e.details ? ' Its feature list isn\'t built in yet; your sheet marks the levels where its features arrive so you can fill them in from the book.' : ''}</p>
+        <ul class="trait-list compact">
+          ${Object.entries(e.features).map(([lv, f]) => `<li><b>Level ${lv}:</b> ${esc(f.join(', '))}</li>`).join('')}
+        </ul>
+      </div>`;
     }
 
     function ensureScores(force = false) {
@@ -650,6 +693,8 @@ const Creator = (() => {
       ch.className = k;
       ch.skills = [];
       ch.subclass = '';
+      ch.subMode = 'list';
+      ch.subOther = '';
       ch.extraSkill = null;
       ch.scoresTouched = false;
       if (ch.method === 'manual') ch.method = 'standard';
@@ -669,9 +714,20 @@ const Creator = (() => {
         el.querySelector('.opt-detail')?.scrollIntoView({ block: 'nearest', behavior: Util.reducedMotion() ? 'auto' : 'smooth' });
         return;
       }
-      if (d.sub !== undefined) { ch.subclass = d.sub; return refresh(); }
+      if (d.sub !== undefined) {
+        if (d.sub === '__other__') {
+          ch.subMode = 'other';
+          ch.subclass = ch.subOther.trim();
+          refresh();
+          el.querySelector('[data-set="subOther"]')?.focus({ preventScroll: true });
+          return;
+        }
+        ch.subMode = 'list';
+        ch.subclass = d.sub;
+        return refresh();
+      }
       if (d.bgmode) { ch.bgMode = d.bgmode; ch.bgTouched = true; return refresh(); }
-      if (d.level) { ch.level = Util.clamp(ch.level + Number(d.level), 1, 20); if (ch.level < 3) ch.subclass = ''; return refresh(); }
+      if (d.level) { ch.level = Util.clamp(ch.level + Number(d.level), 1, 20); if (ch.level < 3) { ch.subclass = ''; ch.subMode = 'list'; } return refresh(); }
       if (d.method) {
         ch.method = d.method;
         if (d.method === 'roll' && !ch.rolled) ch.rolled = rollSet();
@@ -708,9 +764,12 @@ const Creator = (() => {
         const k = t.dataset.set;
         if (k === 'level') {
           ch.level = Util.clamp(Util.num(t.value, 1), 1, 20);
-          if (ch.level < 3) ch.subclass = '';
+          if (ch.level < 3) { ch.subclass = ''; ch.subMode = 'list'; }
         } else if (k === 'name') {
           return;
+        } else if (k === 'subOther') {
+          ch.subOther = t.value;
+          ch.subclass = t.value.trim();
         } else {
           ch[k] = t.value || null;
           if (k === 'plus2' || k === 'plus1') {
@@ -748,6 +807,7 @@ const Creator = (() => {
 
     el.addEventListener('input', e => {
       if (e.target.dataset.set === 'name') ch.name = e.target.value;
+      if (e.target.dataset.set === 'subOther') { ch.subOther = e.target.value; ch.subclass = e.target.value.trim(); renderSummary(); }
     });
     el.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.target.dataset.set === 'name') el.querySelector('[data-action="next"]').click();

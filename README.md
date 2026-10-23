@@ -8,6 +8,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 
 **Player**
 - Create a new character with the step-by-step creator (2024 rules): species, background, class, level and subclass, ability scores, then a name. It fills in the whole sheet for you: ability scores with background bonuses, saves, skills, HP, AC, speed, initiative, hit dice, starting attacks, species traits, class and subclass features by level, origin feats, proficiencies and languages, starting equipment, and spellcasting (save DC, attack bonus, cantrips, prepared spells, spell slots). Every field stays editable.
+- Subclasses: all 123 official ones, grouped as Player's Handbook (2024) and other official books (Xanathar's, Tasha's, Sword Coast, Wildemount, Fizban's, Van Richten's, Bigby's, Dragonlance, Heroes of Faerûn and the 2014 core books), plus an "Other / homebrew" option where you type any name.
 - Or start from a blank sheet, or upload a character you saved before (`.json`).
 - Full 5e sheet: abilities, saving throws, 18 skills (click the dot for proficiency, twice for expertise), AC, initiative, speed, HP with damage/heal, hit dice, death saves, attacks, features, equipment, spells and notes.
 - Proficiency bonus and every modifier calculate themselves from your level and scores.
