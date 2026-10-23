@@ -31,7 +31,7 @@ const Party = (() => {
     }).join('');
   }
 
-  function partyHTML(players, youId) {
+  function partyHTML(players, youId, isDM) {
     if (!players.length) return '<p class="muted small">No one has joined yet.</p>';
     return `<ul class="party-list">${players.map(p => {
       const c = p.character;
@@ -45,6 +45,9 @@ const Party = (() => {
         <div class="pm-hp"><div class="hp-bar small"><div class="hp-fill" style="width:${pct}%" data-low="${pct <= 25}"></div></div>
           <span>${c.hp.current} / ${c.hp.max}${c.hp.temp ? ` +${c.hp.temp}` : ''} HP</span><span class="muted">Passive ${c.passive}</span></div>`
         : '<div class="pm-sub">No character sheet shared</div>'}
+        ${isDM ? `<div class="pm-actions">${p.inCombat
+          ? '<span class="pm-in">In combat</span><button class="link-btn" data-act="remove-player" data-id="' + esc(p.id) + '">Remove</button>'
+          : '<button class="btn btn-small" data-act="add-player" data-id="' + esc(p.id) + '">Add to combat</button>'}</div>` : ''}
       </li>`;
     }).join('')}</ul>`;
   }
@@ -133,8 +136,8 @@ const Party = (() => {
             <div class="room-grid">
               <div class="room-main">
                 <div class="room-actions">
-                  <button class="btn" data-act="add-party">Add the party to combat</button>
-                  <span class="muted small">Players can also roll their own initiative from the room.</span>
+                  <button class="btn" data-act="add-party">Add everyone to combat</button>
+                  <span class="muted small">Or add players one at a time from the Party list. Players can also roll their own initiative.</span>
                 </div>
                 <div data-ref="tracker"></div>
               </div>
@@ -293,7 +296,9 @@ const Party = (() => {
         const ps = Room.players;
         setText('status', statusText || (ps.length ? `${ps.length} player${ps.length > 1 ? 's' : ''} connected.` : 'Share the code with your players so they can join.'));
         setText('pcount', ps.length);
-        setHTML('party', partyHTML(ps));
+        setHTML('party', partyHTML(ps, null, true));
+        const addAll = el.querySelector('[data-act="add-party"]');
+        if (addAll) addAll.disabled = !ps.some(p => !p.inCombat);
         const known = Campaign.publicKnown().reduce((n, sec) => n + sec.entries.length, 0);
         setText('knownCount', known ? `Players can see ${known} known entr${known > 1 ? 'ies' : 'y'} from your campaign.` : 'Nothing from your campaign is marked Known yet.');
         const before = el.querySelector('[data-ref="feed"]')?.innerHTML;
@@ -334,8 +339,14 @@ const Party = (() => {
         case 'leave': Room.leave(); return Util.toast('You left the room.');
         case 'add-party': {
           const n = Room.addPartyToCombat();
-          return Util.toast(n ? `Added ${n} character${n > 1 ? 's' : ''} to combat with rolled initiative.` : 'Everyone with a character is already in combat.');
+          return Util.toast(n ? `Added ${n} player${n > 1 ? 's' : ''} to combat with rolled initiative.` : 'Everyone in the room is already in combat.');
         }
+        case 'add-player': {
+          const cb = Room.addPlayer(b.dataset.id);
+          if (cb) Util.toast(`${cb.name} added to combat (initiative ${cb.init}).${cb.maxHp ? '' : ' They joined without a character, so set their HP and AC in the tracker.'}`);
+          return;
+        }
+        case 'remove-player': return Room.removePlayer(b.dataset.id);
         case 'init': return Room.rollInitiative();
       }
     });

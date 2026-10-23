@@ -14,7 +14,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 
 **Party room** (both roles)
 - The DM clicks **Host a party room** and gets a 5-character code. Players open **Party room**, type the code, pick the character they're bringing, and join from their own computers.
-- **DM view:** the combat tracker, "Add the party to combat" (rolls initiative for everyone), the party list with each character's HP, AC and passive Perception, and the table talk feed.
+- **DM view:** the combat tracker, an **Add to combat** / **Remove** button on each player in the party list (initiative is rolled for them), "Add everyone to combat", the party list with each character's HP, AC and passive Perception, and the table talk feed.
 - **Player view:** the live turn order (enemy health shows only as Healthy / Bloodied / Down), a Roll initiative button, "What the party knows" (the DM's entries marked Known, without secret fields), the party list and table talk.
 - **Table talk:** chat plus shared dice rolls. Players share rolls by default; the DM's rolls stay private unless they tick "Share my rolls".
 - Damage taken on a player's sheet updates the DM's tracker and party list. Reloading the page reconnects automatically.

@@ -760,6 +760,10 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; m
 .pm-name small, .pc-name small { color: var(--accent-hi); font-weight: 500; }
 .pm-ac { font-size: .82rem; color: var(--muted); font-weight: 700; }
 .pm-sub { font-size: .84rem; color: var(--muted); }
+.pm-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.pm-in { font-size: .82rem; font-weight: 700; color: var(--accent-hi); background: var(--accent-soft); padding: 2px 9px; border-radius: 999px; }
+.btn-small { padding: 4px 10px; font-size: .86rem; }
+.btn:disabled { opacity: .5; cursor: default; }
 .pm-hp { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; margin-top: 6px; font-size: .84rem; }
 
 .feed-card { max-height: calc(100vh - 260px); }

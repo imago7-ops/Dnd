@@ -266,16 +266,46 @@ const Room = (() => {
 
   function addPlayerToCombat(p, initTotal) {
     const ch = p.character;
-    if (!ch) return null;
     const existing = linkedCombatant(p.id);
     if (existing) {
       existing.init = initTotal;
       if (Store.state.combat.started) Combat.sortOrder();
       return existing;
     }
-    const cb = Combat.add({ name: ch.name, kind: 'pc', initBonus: ch.initBonus, init: initTotal, hp: ch.hp.current, maxHp: ch.hp.max, ac: ch.ac });
+    // Players who joined without a sheet still get a row; the DM can fill in HP and AC.
+    const cb = ch
+      ? Combat.add({ name: ch.name, kind: 'pc', initBonus: ch.initBonus, init: initTotal, hp: ch.hp.current, maxHp: ch.hp.max, ac: ch.ac })
+      : Combat.add({ name: p.name, kind: 'pc', initBonus: 0, init: initTotal, hp: 0, maxHp: 0, ac: 10 });
     cb.playerId = p.id;
     return cb;
+  }
+
+  const rollFor = p => {
+    const b = p.character ? p.character.initBonus : 0;
+    return Dice.evaluate(`1d20${b >= 0 ? '+' : ''}${b}`).total;
+  };
+
+  /* DM: add one connected player to combat (initiative rolled for them). */
+  function addPlayer(id) {
+    const p = players.get(id);
+    if (s.mode !== 'host' || !p || linkedCombatant(id)) return null;
+    const cb = addPlayerToCombat(p, rollFor(p));
+    combatChanged();
+    return cb;
+  }
+
+  /* DM: take a player back out of combat. */
+  function removePlayer(id) {
+    const c = Store.state.combat;
+    const cb = linkedCombatant(id);
+    if (s.mode !== 'host' || !cb) return;
+    if (c.activeId === cb.id) {
+      const i = c.combatants.indexOf(cb);
+      const next = c.combatants[i + 1] || c.combatants[0];
+      c.activeId = next && next.id !== cb.id ? next.id : null;
+    }
+    c.combatants = c.combatants.filter(x => x !== cb);
+    combatChanged();
   }
 
   function onHostData(p, msg) {
@@ -475,9 +505,8 @@ const Room = (() => {
     if (s.mode !== 'host') return 0;
     let n = 0;
     players.forEach(p => {
-      if (!p.character || linkedCombatant(p.id)) return;
-      const b = p.character.initBonus;
-      addPlayerToCombat(p, Dice.evaluate(`1d20${b >= 0 ? '+' : ''}${b}`).total);
+      if (linkedCombatant(p.id)) return;
+      addPlayerToCombat(p, rollFor(p));
       n++;
     });
     if (n) combatChanged();
@@ -495,8 +524,13 @@ const Room = (() => {
 
   /* Keep the room in step with saves (combat, campaign, character sheet). */
   let charTimer = null;
+  let emitTimer = null;
   window.addEventListener('codex:save', () => {
-    if (s.mode === 'host') broadcast();
+    if (s.mode === 'host') {
+      broadcast();
+      clearTimeout(emitTimer);
+      emitTimer = setTimeout(emit, 120); // keeps the DM's party list in step with the tracker
+    }
     if (s.mode === 'guest' && hostConn && me && me.charId) {
       clearTimeout(charTimer);
       charTimer = setTimeout(() => {
@@ -519,12 +553,12 @@ const Room = (() => {
 
   return {
     get state() { return s; },
-    get players() { return [...players.values()].map(p => ({ id: p.id, name: p.name, character: p.character })); },
+    get players() { return [...players.values()].map(p => ({ id: p.id, name: p.name, character: p.character, inCombat: Boolean(linkedCombatant(p.id)) })); },
     get me() { return me; },
     feed: () => roomData().feed,
     snapshot,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    host, join, leave, chat, rollInitiative, addPartyToCombat, setShareRolls, resume, cleanCode,
+    host, join, leave, chat, rollInitiative, addPartyToCombat, addPlayer, removePlayer, setShareRolls, resume, cleanCode,
     CODE_LEN,
   };
 })();
