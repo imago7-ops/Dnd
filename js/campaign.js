@@ -58,6 +58,19 @@ const Campaign = (() => {
       ],
       summary: ['location'], badge: 'cr', badgePrefix: 'CR ', combat: 'single',
     },
+    monsters: {
+      label: 'Monsters and enemies', one: 'monster', color: '#c77d5a',
+      blurb: 'Creatures and foes with quick stats, ready to drop into a fight.',
+      fields: [
+        ['name', 'Name', 'text'], ['ctype', 'Size and type', 'text'], ['cr', 'Challenge rating', 'text'],
+        ['ac', 'AC', 'number'], ['hp', 'HP', 'number'], ['speed', 'Speed', 'text'],
+        ['abilities', 'Ability scores (STR DEX CON INT WIS CHA)', 'text'],
+        ['traits', 'Traits', 'textarea'], ['actions', 'Actions and attacks', 'textarea'],
+        ['tactics', 'Tactics', 'textarea'], ['habitat', 'Where it is found', 'text', 'locations'],
+        ['loot', 'Loot', 'textarea'], ['notes', 'Notes', 'textarea'],
+      ],
+      summary: ['ctype', 'habitat'], badge: 'cr', badgePrefix: 'CR ', combat: 'single',
+    },
     weather: {
       label: 'Weather', one: 'weather', color: '#8cc3dd',
       blurb: 'Conditions by region or day. Roll it or write your own.',
@@ -394,6 +407,7 @@ const Campaign = (() => {
             <div class="entry-actions">
               ${t.roll ? '<button class="btn" data-action="roll-weather">Roll random weather</button>' : ''}
               ${t.combat ? `<button class="btn" data-action="to-combat">${t.combat === 'creatures' ? 'Add creatures to combat' : 'Add to combat'}</button>` : ''}
+              <button class="btn btn-ai" data-action="ai-fill"><span aria-hidden="true">✦</span> Fill in the blanks with AI</button>
               <button class="btn btn-ghost-danger" data-action="delete-entry">Delete ${esc(t.one)}</button>
             </div>
           </div>` : ''}
@@ -424,7 +438,7 @@ const Campaign = (() => {
       const knownCount = sec.entries.filter(x => x.known).length;
       const emptyMsg = sec.entries.length && show !== 'all'
         ? `<p class="nb-empty">No ${show} ${esc(sec.label.toLowerCase())}.</p>`
-        : `<p class="nb-empty">${esc(t.blurb)} <button class="link-btn" data-action="add-entry">Add the first ${esc(t.one)}</button></p>`;
+        : `<p class="nb-empty">${esc(t.blurb)} <button class="link-btn" data-action="add-entry">Add the first ${esc(t.one)}</button> or <button class="link-btn" data-action="ai-draft">draft one with AI</button></p>`;
       return `
         <section class="nb-section ${open ? 'open' : ''}" data-section="${sec.id}" style="--c:${t.color}">
           <div class="nb-section-head">
@@ -434,6 +448,7 @@ const Campaign = (() => {
               <span class="nb-label">${esc(sec.label)}</span>
               <span class="count">${sec.entries.length}</span>
             </button>
+            <button class="btn btn-ai" data-action="ai-draft" aria-label="Draft ${/^([aeiou]|npc)/i.test(t.one) ? 'an' : 'a'} ${esc(t.one)} with AI" title="Draft with AI"><span aria-hidden="true">✦</span><span class="add-word"> Draft with AI</span></button>
             <button class="btn btn-add" data-action="add-entry" aria-label="Add ${esc(t.one)}"><span aria-hidden="true">+</span><span class="add-word"> Add ${esc(t.one)}</span></button>
           </div>
           ${open ? `<div class="nb-section-body" id="sec-${sec.id}">
@@ -461,10 +476,11 @@ const Campaign = (() => {
       t.style.height = t.scrollHeight + 2 + 'px';
     }
 
-    function addEntry(sec) {
+    function addEntry(sec, filled) {
       const t = typeOf(sec);
       const f = {};
       t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
+      if (filled) Object.assign(f, filled);
       const e = { id: Util.uid(), open: true, known: false, f };
       if (show === 'known') e.known = true;
       sec.entries.unshift(e);
@@ -472,6 +488,94 @@ const Campaign = (() => {
       save();
       render();
       el.querySelector(`[data-entry="${e.id}"] [data-field="name"]`)?.focus();
+    }
+
+    /* ---------- AI drafting ---------- */
+    const AI_HINTS = {
+      npcs: 'e.g. a nervous gnome cartographer who sells forged maps',
+      locations: 'e.g. a fishing village built on the back of a sleeping turtle',
+      factions: 'e.g. a guild of lamplighters who secretly hunt shadow creatures',
+      bosses: 'e.g. a drowned priestess who commands the tides, CR 8',
+      monsters: 'e.g. a swamp lurker that mimics voices, around CR 3',
+      weather: 'e.g. a strange green fog rolling off the marsh in late autumn',
+      abnormalities: 'e.g. a stretch of road where time runs backwards at night',
+      quests: 'e.g. recover a stolen bell before the next new moon',
+      encounters: 'e.g. bandit ambush at a collapsed bridge for four level 3 characters',
+      items: 'e.g. a compass that points to whatever the holder fears most',
+      lore: 'e.g. the legend of how the twin moons were split',
+      sessions: 'e.g. recap: the party freed the prisoners and burned the warehouse',
+    };
+
+    function campaignContext() {
+      const lines = [];
+      if (cp.name) lines.push(`Campaign: ${cp.name}`);
+      if (cp.pitch) lines.push(`Premise: ${cp.pitch}`);
+      [['locations', 'Locations'], ['factions', 'Factions'], ['npcs', 'NPCs'], ['bosses', 'Bosses']].forEach(([type, label]) => {
+        const list = names(type).slice(0, 25);
+        if (list.length) lines.push(`${label} already in the campaign: ${list.join(', ')}`);
+      });
+      return lines.join('\n');
+    }
+
+    function fieldGuide(t) {
+      return t.fields.map(([k, label, type, opt]) => {
+        if (type === 'select') return `- "${k}" (${label}): one of ${opt.filter(Boolean).map(o => `"${o}"`).join(', ')}`;
+        if (type === 'number') return `- "${k}" (${label}): a whole number`;
+        if (type === 'textarea') return `- "${k}" (${label}): 1 to 4 short sentences or short lines separated by \\n`;
+        return `- "${k}" (${label}): a short phrase`;
+      }).join('\n');
+    }
+
+    function aiPrompt(sec, request, useContext, current) {
+      const t = typeOf(sec);
+      const extra = {
+        bosses: 'Make the stats, abilities and legendary actions fit the challenge rating and 5e conventions. Give the boss a clear motive and a weakness the party can discover.',
+        monsters: 'Make AC, HP, ability scores and attacks fit the challenge rating and 5e conventions (attack bonus, damage dice and save DCs written out).',
+        encounters: 'List creatures one per line with a count, like "3 Goblin". Balance it for the party described, or a typical party of four if none is given.',
+        npcs: 'Give them a distinct voice and something they want from the party.',
+        abnormalities: 'Describe what players can observe separately from the hidden true cause.',
+      }[sec.type] || '';
+      const system = [
+        'You help a Dungeon Master prepare a Dungeons & Dragons 5th edition campaign using the 2024 rules.',
+        'Write original material in your own words. Do not copy text from published books.',
+        'Keep it table-ready: concrete, vivid and brief. The DM will read it during play.',
+        'Reply with a single JSON object and nothing else.',
+      ].join(' ');
+      const parts = [`Create one ${t.one} (${sec.label}).`];
+      if (useContext) { const c = campaignContext(); if (c) parts.push(`\nCampaign details for consistency:\n${c}`); }
+      if (request) parts.push(`\nThe DM asked for: ${request}`);
+      if (current) {
+        const kept = Object.fromEntries(Object.entries(current).filter(([, v]) => String(v || '').trim()));
+        parts.push(`\nThe DM has already written these fields. Keep them as they are and make everything else fit them:\n${JSON.stringify(kept)}`);
+        parts.push('Only return the fields that are still empty.');
+      }
+      if (extra) parts.push(`\n${extra}`);
+      parts.push(`\nReturn JSON with these keys:\n${fieldGuide(t)}`);
+      return { system, prompt: parts.join('\n') };
+    }
+
+    const article = word => (/^([aeiou]|npc)/i.test(word) ? 'an' : 'a');
+    function openAI(sec, entry) {
+      const t = typeOf(sec);
+      AI.open({
+        title: entry ? `Fill in ${entry.f.name || `this ${t.one}`}` : `Draft ${article(t.one)} ${t.one} with AI`,
+        kind: t.one,
+        fields: t.fields,
+        current: entry ? entry.f : null,
+        placeholder: AI_HINTS[sec.type] || `Describe the ${t.one}`,
+        buildPrompt: (request, useContext) => aiPrompt(sec, request, useContext, entry ? entry.f : null),
+        onAccept(fields) {
+          if (entry) {
+            Object.entries(fields).forEach(([k, v]) => { if (!String(entry.f[k] || '').trim()) entry.f[k] = v; });
+            entry.open = true;
+            save(); render();
+            Util.toast('Filled in the empty fields.');
+          } else {
+            addEntry(sec, fields);
+            Util.toast(`Added ${fields.name || `a new ${t.one}`} as Hidden. Edit anything you like.`);
+          }
+        },
+      });
     }
 
     function showUndo(text, undo) {
@@ -522,6 +626,8 @@ const Campaign = (() => {
           if (query) return;
           ctx.sec.open = !ctx.sec.open; save(); return render();
         case 'add-entry': return addEntry(ctx.sec);
+        case 'ai-draft': return openAI(ctx.sec, null);
+        case 'ai-fill': return openAI(ctx.sec, ctx.entry);
         case 'toggle-known': {
           ctx.entry.known = !ctx.entry.known;
           save();
@@ -623,6 +729,7 @@ const Campaign = (() => {
     locations: ['kind', 'region', 'description', 'points'],
     factions: ['leader', 'base', 'goals'],
     bosses: ['location'],
+    monsters: ['ctype'],
     weather: ['region', 'season', 'conditions', 'temperature', 'wind', 'effects'],
     abnormalities: ['kind', 'location', 'description'],
     quests: ['status', 'giver', 'location', 'reward', 'description'],

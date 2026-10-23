@@ -932,6 +932,20 @@ a.btn-primary { color: var(--accent-ink); }
 .lu-changes b { color: var(--accent-hi); }
 .lu-changes tr + tr > * { border-top: 1px solid var(--line-soft); }
 
+/* ---------- AI drafting ---------- */
+.btn-ai { color: var(--violet); border-color: rgba(183, 138, 216, .45); background: rgba(183, 138, 216, .1); }
+.btn-ai:hover { background: rgba(183, 138, 216, .2); border-color: var(--violet); }
+.btn-ai span[aria-hidden] { font-size: .95em; }
+.ai-modal textarea { width: 100%; resize: vertical; }
+.ai-opts { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.ai-opts .field { min-width: 180px; flex: 1; }
+.ai-error { color: #f2a598; background: var(--red-soft); padding: 8px 12px; border-radius: var(--r-sm); }
+.ai-wait { color: var(--muted); padding: 24px 0; }
+.ai-result { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.ai-row { padding: 8px 12px; background: var(--bg); border-radius: var(--r-sm); }
+.ai-row dt { font-size: .8rem; color: var(--faint); }
+.ai-row dd { margin: 2px 0 0; white-space: pre-wrap; }
+
 /* ---------- Toasts ---------- */
 #toasts { position: fixed; left: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; pointer-events: none; }
 .toast {
