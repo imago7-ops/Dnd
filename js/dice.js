@@ -136,6 +136,7 @@ const Dice = (() => {
   function mount(el) {
     el.innerHTML = `
       <section class="tray" aria-label="Dice">
+        <button class="icon-btn tray-close" data-action="close-tray" aria-label="Close dice">×</button>
         <div class="tray-result" data-ref="result">
           <div class="tray-die">${D20_SVG}</div>
           <div class="tray-label" data-ref="label">Roll something</div>
@@ -239,6 +240,8 @@ const Dice = (() => {
       } else if (t.dataset.reroll) {
         const r = Store.state.rolls.find(x => x.id === t.dataset.reroll);
         if (r) roll(r.expr.replace(/2d20k[hl]1/, '1d20'), r.label);
+      } else if (t.dataset.action === 'close-tray') {
+        document.body.classList.remove('tray-open');
       } else if (t.dataset.action === 'clear') {
         Store.state.rolls = [];
         Store.save();

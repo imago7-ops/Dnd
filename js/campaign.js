@@ -305,10 +305,15 @@ const Campaign = (() => {
           <div class="nb-tools">
             <input type="search" class="nb-search" data-ref="search" placeholder="Search everything" aria-label="Search the campaign">
             <div class="seg vis-filter" role="radiogroup" aria-label="Show entries" data-ref="filter"></div>
-            <button class="btn" data-action="expand">Expand all</button>
-            <button class="btn" data-action="collapse">Collapse all</button>
-            <button class="btn" data-action="export">Download</button>
             <a class="room-code-chip" href="#/room" title="Players join this campaign's party room with this code">Room code <b>${esc(cp.roomCode)}</b></a>
+            <details class="menu">
+              <summary class="btn">More</summary>
+              <div class="menu-list">
+                <button data-action="expand">Open every section</button>
+                <button data-action="collapse">Close every section</button>
+                <button data-action="export">Download this campaign</button>
+              </div>
+            </details>
           </div>
         </header>
         <div class="nb-sections" data-ref="sections"></div>
@@ -428,16 +433,16 @@ const Campaign = (() => {
               <span class="swatch"></span>
               <span class="nb-label">${esc(sec.label)}</span>
               <span class="count">${sec.entries.length}</span>
-              ${sec.entries.length ? `<span class="known-count">${knownCount} known</span>` : ''}
             </button>
-            ${open && sec.entries.length ? `<span class="bulk">
-              <button class="link-btn" data-action="reveal-all" ${knownCount === sec.entries.length ? 'disabled' : ''}>Reveal all</button>
-              <button class="link-btn" data-action="hide-all" ${knownCount === 0 ? 'disabled' : ''}>Hide all</button>
-            </span>` : ''}
-            ${TYPES[sec.type] ? '' : `<button class="link-btn" data-action="delete-section">Remove section</button>`}
-            <button class="btn btn-add" data-action="add-entry">Add ${esc(t.one)}</button>
+            <button class="btn btn-add" data-action="add-entry" aria-label="Add ${esc(t.one)}"><span aria-hidden="true">+</span><span class="add-word"> Add ${esc(t.one)}</span></button>
           </div>
           ${open ? `<div class="nb-section-body" id="sec-${sec.id}">
+            ${sec.entries.length || !TYPES[sec.type] ? `<div class="sec-tools">
+              ${sec.entries.length ? `<span class="known-count">${knownCount} of ${sec.entries.length} known to players</span>
+              <button class="link-btn" data-action="reveal-all" ${knownCount === sec.entries.length ? 'disabled' : ''}>Reveal all</button>
+              <button class="link-btn" data-action="hide-all" ${knownCount === 0 ? 'disabled' : ''}>Hide all</button>` : ''}
+              ${TYPES[sec.type] ? '' : `<button class="link-btn danger" data-action="delete-section">Remove section</button>`}
+            </div>` : ''}
             ${shown.length ? shown.map(e => entryHTML(sec, e)).join('') : emptyMsg}
           </div>` : ''}
         </section>`;
@@ -507,6 +512,7 @@ const Campaign = (() => {
     el.addEventListener('click', e => {
       const btn = e.target.closest('button');
       if (!btn || btn.disabled) return;
+      btn.closest('details.menu')?.removeAttribute('open');
       if (btn.dataset.show) { show = btn.dataset.show; return render(); }
       const a = btn.dataset.action;
       if (!a) return;

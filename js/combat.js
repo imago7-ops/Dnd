@@ -52,6 +52,8 @@ const Combat = (() => {
           <div class="turn-controls" data-ref="turn"></div>
         </div>
 
+        <details class="add-details" ${opts.embedded ? '' : 'open'}>
+        <summary class="btn">Add a combatant</summary>
         <form class="panel add-form" data-ref="form" autocomplete="off">
           <label class="field grow"><span>Name</span><input name="name" placeholder="Goblin" required></label>
           <label class="field narrow"><span>Count</span><input name="count" type="number" min="1" max="20" value="1"></label>
@@ -68,6 +70,7 @@ const Combat = (() => {
           </label>
           <button class="btn btn-primary" type="submit">Add to combat</button>
         </form>
+        </details>
         ${me ? `<button class="btn add-me" data-action="add-me">Add ${Util.esc(me.name || 'my character')} to combat</button>` : ''}
 
         <div class="order" data-ref="list"></div>

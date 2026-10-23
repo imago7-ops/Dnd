@@ -94,6 +94,7 @@ const Character = (() => {
     (el.closest('.main') || document.scrollingElement).scrollTop = 0;
     Creator.mount(host, {
       onDone(c, isBlank) {
+        document.body.classList.remove('no-fab');
         Store.state.characters.push(c);
         Store.state.activeCharacterId = c.id;
         Store.save();
@@ -101,7 +102,7 @@ const Character = (() => {
         (el.closest('.main') || document.scrollingElement).scrollTop = 0;
         if (!isBlank) Util.toast(`${c.name || 'Your character'} is ready. Everything on the sheet can still be edited.`);
       },
-      onCancel() { mount(el); },
+      onCancel() { document.body.classList.remove('no-fab'); mount(el); },
     });
   }
 
@@ -158,108 +159,115 @@ const Character = (() => {
     ).join('');
   }
 
+  /* The sheet is split into folders; only one is open at a time. */
+  const TABS = [
+    ['info', 'Character info'], ['abilities', 'Ability scores'], ['skills', 'Skills'], ['combat', 'Combat'],
+    ['spells', 'Spells'], ['features', 'Features & traits'], ['profs', 'Proficiencies'], ['gear', 'Equipment'], ['notes', 'Notes'],
+  ];
+  const TAB_KEY = 'campaign-codex.sheet-tab';
+  let currentTab = (() => { try { return localStorage.getItem(TAB_KEY) || 'info'; } catch { return 'info'; } })();
+
+  function headline(c) {
+    const lvl = Util.num(c.level, 1);
+    const cls = c.className ? `${c.className} ${lvl}${c.subclass ? ` (${c.subclass})` : ''}` : `Level ${lvl}`;
+    return [c.species, cls].filter(Boolean).join(' ');
+  }
+
+  function showTab(el, tab, focus = false) {
+    if (!TABS.some(t => t[0] === tab)) tab = 'info';
+    currentTab = tab;
+    try { localStorage.setItem(TAB_KEY, tab); } catch { /* ignore */ }
+    el.querySelectorAll('[data-tab]').forEach(b => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on);
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+      if (on) b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    el.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== tab; });
+    el.querySelectorAll(`[data-panel="${tab}"] textarea`).forEach(autoSize);
+  }
+
   function mountSheet(el, focusName = false) {
     const c = active();
     const chars = Store.state.characters;
+    if (focusName) currentTab = 'info';
+    const panel = (id, inner) => `<section class="fpanel" data-panel="${id}" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" hidden>${inner}</section>`;
+    const textPanel = (id, title, key, ph) => panel(id, `
+      <label class="fp-text"><span class="fp-title">${title}</span>
+        <textarea data-bind="${key}" placeholder="${ph}" rows="6">${Util.esc(c[key])}</textarea>
+      </label>`);
 
     el.innerHTML = `
       <div class="sheet">
-        <div class="sheet-bar">
-          ${chars.length > 1 ? `
-            <label class="char-switch">
-              <span class="sr-only">Switch character</span>
-              <select data-action="switch">
-                ${chars.map(x => `<option value="${x.id}" ${x.id === c.id ? 'selected' : ''}>${Util.esc(x.name || 'Unnamed character')}</option>`).join('')}
-              </select>
-            </label>` : ''}
-          <div class="bar-actions">
+        <header class="sh-head">
+          <div class="sh-id">
+            ${chars.length > 1 ? `
+              <label class="char-switch">
+                <span class="sr-only">Switch character</span>
+                <select data-action="switch">
+                  ${chars.map(x => `<option value="${x.id}" ${x.id === c.id ? 'selected' : ''}>${Util.esc(x.name || 'Unnamed character')}</option>`).join('')}
+                </select>
+              </label>` : ''}
+            <h1 class="sh-name" data-out="title"></h1>
+            <p class="sh-line" data-out="line"></p>
+          </div>
+          <div class="sh-actions">
             <button class="btn btn-primary" data-action="level-up" ${Util.num(c.level, 1) >= 20 ? 'disabled' : ''}>Level up</button>
-            <button class="btn" data-action="new">New character</button>
-            <button class="btn" data-action="upload">Upload</button>
-            <button class="btn" data-action="download">Download</button>
-            <button class="btn btn-ghost-danger" data-action="delete">Delete</button>
+            <details class="menu">
+              <summary class="btn">More</summary>
+              <div class="menu-list">
+                <button data-action="new">New character</button>
+                <button data-action="upload">Upload a character</button>
+                <button data-action="download">Download this character</button>
+                <button class="danger" data-action="delete">Delete this character</button>
+              </div>
+            </details>
           </div>
-        </div>
-
-        <header class="identity panel">
-          <input class="char-name" data-bind="name" value="${Util.esc(c.name)}" placeholder="Character name" aria-label="Character name">
-          <div class="identity-grid">
-            ${field('Class', 'className', c.className, { list: 'dl-classes', span: 2 })}
-            ${field('Subclass', 'subclass', c.subclass, { span: 2, list: 'dl-subclasses' })}
-            ${field('Level', 'level', c.level, { type: 'number', attrs: 'min="1" max="20"', cls: 'narrow' })}
-            ${field('Species', 'species', c.species, { list: 'dl-species', span: 2 })}
-            ${field('Background', 'background', c.background, { span: 3 })}
-            ${field('Alignment', 'alignment', c.alignment, { list: 'dl-align', span: 3 })}
-            ${field('XP', 'xp', c.xp, { type: 'number', attrs: 'min="0"', cls: 'narrow' })}
-          </div>
-          <datalist id="dl-classes">${Object.keys(CLASSES).map(x => `<option value="${x}">`).join('')}</datalist>
-          <datalist id="dl-subclasses">${subclassOptions(c.className)}</datalist>
-          <datalist id="dl-species">${SPECIES.map(x => `<option value="${x}">`).join('')}</datalist>
-          <datalist id="dl-align">${ALIGNMENTS.map(x => `<option value="${x}">`).join('')}</datalist>
         </header>
 
-        <section class="vitals">
-          <div class="vital panel">
-            <span class="vital-label">Armor class</span>
-            <input class="vital-input" type="number" data-bind="ac" value="${c.ac}" aria-label="Armor class">
-          </div>
-          <div class="vital panel">
-            <span class="vital-label">Initiative</span>
-            <button class="vital-roll" data-roll="init" data-out="init" title="Roll initiative"></button>
-            <label class="vital-sub">misc <input type="number" data-bind="initMisc" value="${c.initMisc}" aria-label="Initiative misc bonus"></label>
-          </div>
-          <div class="vital panel">
-            <span class="vital-label">Speed</span>
-            <input class="vital-input" type="number" data-bind="speed" value="${c.speed}" aria-label="Speed in feet">
-            <span class="vital-sub">feet</span>
-          </div>
-          <div class="vital panel">
-            <span class="vital-label">Proficiency</span>
-            <span class="vital-value" data-out="prof"></span>
-            <span class="vital-sub">from level</span>
-          </div>
+        <section class="quick" aria-label="Quick stats">
+          <button class="qs qs-hp" data-goto="combat" title="Open Combat">
+            <span class="qs-label">Hit points</span>
+            <b><span data-out="hpnow"></span><small data-out="hpmax"></small></b>
+            <span class="hp-bar"><span class="hp-fill" data-out="hpfill"></span></span>
+          </button>
+          <div class="qs"><span class="qs-label">AC</span><b data-out="ac"></b></div>
+          <button class="qs qs-roll" data-roll="init" title="Roll initiative"><span class="qs-label">Initiative</span><b data-out="init"></b></button>
+          <div class="qs"><span class="qs-label">Speed</span><b data-out="speed"></b></div>
+          <div class="qs"><span class="qs-label">Proficiency</span><b data-out="prof"></b></div>
+        </section>
 
-          <div class="vital vital-hp panel">
-            <div class="hp-top">
-              <span class="vital-label">Hit points</span>
-              <div class="hp-bar"><div class="hp-fill" data-out="hpfill"></div></div>
-            </div>
-            <div class="hp-row">
-              <label class="hp-num"><input type="number" data-bind="hp.current" value="${c.hp.current}" aria-label="Current HP"><span>current</span></label>
-              <span class="hp-slash">/</span>
-              <label class="hp-num"><input type="number" data-bind="hp.max" value="${c.hp.max}" aria-label="Max HP"><span>max</span></label>
-              <label class="hp-num temp"><input type="number" data-bind="hp.temp" value="${c.hp.temp}" aria-label="Temporary HP"><span>temp</span></label>
-              <div class="hp-adjust">
-                <input type="number" min="0" data-ref="hpamt" placeholder="0" aria-label="Amount">
-                <button class="btn btn-danger" data-action="damage">Damage</button>
-                <button class="btn btn-heal" data-action="heal">Heal</button>
-              </div>
-            </div>
-          </div>
+        <nav class="ftabs" role="tablist" aria-label="Character sheet sections">
+          ${TABS.map(([id, label]) => `<button class="ftab" role="tab" id="tab-${id}" data-tab="${id}" aria-controls="panel-${id}">${label}</button>`).join('')}
+        </nav>
 
-          <div class="vital vital-stack panel">
-            <div class="stack-row">
-              <span class="vital-label">Hit dice</span>
-              <input class="mini-input" data-bind="hitDice" value="${Util.esc(c.hitDice)}" aria-label="Hit dice">
-              <button class="chip-btn" data-roll="hitdie" title="Roll one hit die plus Constitution">Roll</button>
+        <div class="fpanels">
+          ${panel('info', `
+            <input class="char-name" data-bind="name" value="${Util.esc(c.name)}" placeholder="Character name" aria-label="Character name">
+            <div class="form-grid">
+              ${field('Class', 'className', c.className, { list: 'dl-classes' })}
+              ${field('Subclass', 'subclass', c.subclass, { list: 'dl-subclasses' })}
+              ${field('Level', 'level', c.level, { type: 'number', attrs: 'min="1" max="20" inputmode="numeric"' })}
+              ${field('Species', 'species', c.species, { list: 'dl-species' })}
+              ${field('Background', 'background', c.background)}
+              ${field('Alignment', 'alignment', c.alignment, { list: 'dl-align' })}
+              ${field('Experience points', 'xp', c.xp, { type: 'number', attrs: 'min="0" inputmode="numeric"' })}
             </div>
-            <div class="stack-row">
-              <span class="vital-label">Death saves</span>
-              <span class="pips">${pips('deathSaves.success', 3, c.deathSaves.success, 'success')}</span>
-              <span class="pips">${pips('deathSaves.fail', 3, c.deathSaves.fail, 'fail')}</span>
-              <button class="chip-btn" data-roll="death">Roll</button>
-            </div>
-            <label class="stack-row check">
+            <label class="check-line">
               <input type="checkbox" data-bind="inspiration" ${c.inspiration ? 'checked' : ''}>
               <span>Heroic inspiration</span>
             </label>
-          </div>
-        </section>
+            <p class="fp-hint">Changing your level opens the level-up steps.</p>
+            <datalist id="dl-classes">${Object.keys(CLASSES).map(x => `<option value="${x}">`).join('')}</datalist>
+            <datalist id="dl-subclasses">${subclassOptions(c.className)}</datalist>
+            <datalist id="dl-species">${SPECIES.map(x => `<option value="${x}">`).join('')}</datalist>
+            <datalist id="dl-align">${ALIGNMENTS.map(x => `<option value="${x}">`).join('')}</datalist>`)}
 
-        <section class="sheet-cols">
-          <div class="panel abilities">
-            <div class="panel-head">
-              <h2>Abilities</h2>
+          ${panel('abilities', `
+            <div class="fp-head">
+              <p class="fp-hint">Tap a modifier to roll a check.</p>
               <div class="head-actions">
                 <button class="link-btn" data-action="roll-stats" title="Roll 4d6, drop the lowest, six times">Roll scores</button>
                 <button class="link-btn" data-action="std-array" title="15, 14, 13, 12, 10, 8 in order">Standard array</button>
@@ -270,10 +278,11 @@ const Character = (() => {
                 <div class="ability">
                   <span class="ability-name">${name}</span>
                   <button class="ability-mod" data-roll="check:${k}" data-out="mod:${k}" title="Roll a ${name} check"></button>
-                  <input class="ability-score" type="number" min="1" max="30" data-bind="abilities.${k}" value="${c.abilities[k]}" aria-label="${name} score">
+                  <input class="ability-score" type="number" min="1" max="30" inputmode="numeric" data-bind="abilities.${k}" value="${c.abilities[k]}" aria-label="${name} score">
                 </div>`).join('')}
             </div>
             <h3 class="sub-head">Saving throws</h3>
+            <p class="fp-hint">Tick the box for saves you're proficient in.</p>
             <ul class="rows">
               ${ABILITIES.map(([k, name]) => `
                 <li class="row">
@@ -282,14 +291,10 @@ const Character = (() => {
                     <span>${name}</span><b data-out="save:${k}"></b>
                   </button>
                 </li>`).join('')}
-            </ul>
-          </div>
+            </ul>`)}
 
-          <div class="panel skills">
-            <div class="panel-head">
-              <h2>Skills</h2>
-              <span class="hint">Click the dot to mark proficiency, twice for expertise</span>
-            </div>
+          ${panel('skills', `
+            <p class="fp-hint">Tap the dot once for proficiency, twice for expertise. Tap a skill to roll it.</p>
             <ul class="rows">
               ${SKILLS.map(([k, name, a]) => `
                 <li class="row">
@@ -299,30 +304,57 @@ const Character = (() => {
                   </button>
                 </li>`).join('')}
             </ul>
-            <div class="passive">Passive perception <b data-out="passive"></b></div>
-          </div>
+            <div class="passive">Passive Perception <b data-out="passive"></b></div>`)}
 
-          <div class="panel attacks">
-            <div class="panel-head">
-              <h2>Attacks</h2>
+          ${panel('combat', `
+            <div class="hp-card">
+              <div class="hp-nums">
+                <label class="hp-num"><input type="number" inputmode="numeric" data-bind="hp.current" value="${c.hp.current}" aria-label="Current HP"><span>current</span></label>
+                <span class="hp-slash">/</span>
+                <label class="hp-num"><input type="number" inputmode="numeric" data-bind="hp.max" value="${c.hp.max}" aria-label="Max HP"><span>max</span></label>
+                <label class="hp-num temp"><input type="number" inputmode="numeric" data-bind="hp.temp" value="${c.hp.temp}" aria-label="Temporary HP"><span>temp</span></label>
+              </div>
+              <div class="hp-adjust">
+                <input type="number" min="0" inputmode="numeric" data-ref="hpamt" placeholder="Amount" aria-label="Damage or healing amount">
+                <button class="btn btn-danger" data-action="damage">Damage</button>
+                <button class="btn btn-heal" data-action="heal">Heal</button>
+              </div>
+            </div>
+            <div class="form-grid">
+              ${field('Armor class', 'ac', c.ac, { type: 'number', attrs: 'inputmode="numeric"' })}
+              ${field('Speed (feet)', 'speed', c.speed, { type: 'number', attrs: 'inputmode="numeric"' })}
+              ${field('Initiative bonus (extra)', 'initMisc', c.initMisc, { type: 'number' })}
+              <div class="field">
+                <span>Hit dice</span>
+                <div class="inline-ctl">
+                  <input data-bind="hitDice" value="${Util.esc(c.hitDice)}" aria-label="Hit dice">
+                  <button class="chip-btn" data-roll="hitdie" title="Roll one hit die plus Constitution">Roll</button>
+                </div>
+              </div>
+            </div>
+            <div class="death-line">
+              <span class="fp-label">Death saves</span>
+              <span class="pips" aria-label="Successes">${pips('deathSaves.success', 3, c.deathSaves.success, 'success')}</span>
+              <span class="pips" aria-label="Failures">${pips('deathSaves.fail', 3, c.deathSaves.fail, 'fail')}</span>
+              <button class="chip-btn" data-roll="death">Roll</button>
+            </div>
+            <div class="fp-head">
+              <h3 class="sub-head">Attacks</h3>
               <button class="link-btn" data-action="add-attack">Add attack</button>
             </div>
-            <div class="attack-list" data-ref="attacks">${attacksHTML(c)}</div>
-          </div>
-        </section>
+            <div class="attack-list" data-ref="attacks">${attacksHTML(c)}</div>`)}
 
-        <section class="sheet-notes">
-          ${noteBox('Features & traits', 'features', c.features, 'Class features, species traits, feats…', 'wide')}
-          ${noteBox('Proficiencies & languages', 'proficiencies', c.proficiencies, 'Armor, weapons, tools, languages…')}
-          ${noteBox('Equipment', 'equipment', c.equipment, 'Armor, weapons, gear, coin…')}
-          ${noteBox('Spells', 'spells', c.spells, 'Spell slots, cantrips, prepared spells…')}
-          ${noteBox('Notes', 'notes', c.notes, 'Backstory, allies, goals, session notes…')}
-        </section>
+          ${textPanel('spells', 'Spells', 'spells', 'Spell slots, cantrips, prepared spells…')}
+          ${textPanel('features', 'Features & traits', 'features', 'Class features, species traits, feats…')}
+          ${textPanel('profs', 'Proficiencies & languages', 'proficiencies', 'Armor, weapons, tools, languages…')}
+          ${textPanel('gear', 'Equipment', 'equipment', 'Armor, weapons, gear, coin…')}
+          ${textPanel('notes', 'Notes', 'notes', 'Backstory, allies, goals, session notes…')}
+        </div>
       </div>`;
 
     updateDerived(el, c);
     wire(el);
-    el.querySelectorAll('textarea').forEach(autoSize);
+    showTab(el, currentTab);
     if (focusName) el.querySelector('.char-name').focus();
   }
 
@@ -358,7 +390,13 @@ const Character = (() => {
   }
 
   function updateDerived(el, c) {
-    const set = (key, text) => { const n = el.querySelector(`[data-out="${key}"]`); if (n) n.textContent = text; };
+    const set = (key, text) => el.querySelectorAll(`[data-out="${key}"]`).forEach(n => { n.textContent = text; });
+    set('title', c.name || 'Unnamed character');
+    set('line', headline(c));
+    set('hpnow', Util.num(c.hp.current, 0) + (Util.num(c.hp.temp, 0) ? ` +${Util.num(c.hp.temp, 0)}` : ''));
+    set('hpmax', ` / ${Util.num(c.hp.max, 0)}`);
+    set('ac', Util.num(c.ac, 10));
+    set('speed', `${Util.num(c.speed, 30)} ft`);
     ABILITIES.forEach(([k]) => {
       set(`mod:${k}`, Util.fmtMod(mod(c.abilities[k])));
       set(`save:${k}`, Util.fmtMod(saveBonus(c, k)));
@@ -430,6 +468,10 @@ const Character = (() => {
     el.onclick = e => {
       const btn = e.target.closest('button');
       if (!btn) return;
+      const menu = btn.closest('details.menu');
+      if (menu) menu.open = false;
+      if (btn.dataset.tab) return showTab(el, btn.dataset.tab);
+      if (btn.dataset.goto) return showTab(el, btn.dataset.goto);
       if (btn.dataset.roll) return doRoll(c, btn.dataset.roll, el);
       if (btn.dataset.skill) {
         const k = btn.dataset.skill;
@@ -487,6 +529,14 @@ const Character = (() => {
       Store.state.activeCharacterId = sw.value;
       Store.save();
       mountSheet(el);
+    };
+
+    el.querySelector('.ftabs').onkeydown = e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const i = TABS.findIndex(t => t[0] === currentTab);
+      const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0];
+      showTab(el, next, true);
+      e.preventDefault();
     };
 
     el.querySelector('[data-ref="hpamt"]').onkeydown = e => {

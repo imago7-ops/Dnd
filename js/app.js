@@ -68,10 +68,37 @@ const App = (() => {
         </header>
         <main class="main" id="main"></main>
         <aside class="tray-col" id="tray"></aside>
+        <div class="tray-backdrop" data-ref="trayBackdrop"></div>
+        <button class="dice-fab" data-ref="diceFab" aria-label="Open the dice tray">${Dice.D20_SVG}<span>Dice</span></button>
+        <button class="roll-pop" data-ref="rollPop" hidden aria-live="polite"></button>
       </div>`;
     Dice.mount(document.getElementById('tray'));
+    wirePhoneDice();
     renderRoomPill();
   }
+
+  /* On phones the dice tray is a bottom sheet opened by a floating button. */
+  const isPhone = () => window.matchMedia('(max-width: 860px)').matches;
+  function openTray(open) { document.body.classList.toggle('tray-open', open); }
+  function wirePhoneDice() {
+    const fab = app.querySelector('[data-ref="diceFab"]');
+    const pop = app.querySelector('[data-ref="rollPop"]');
+    fab.onclick = () => openTray(true);
+    app.querySelector('[data-ref="trayBackdrop"]').onclick = () => openTray(false);
+    pop.onclick = () => { pop.hidden = true; openTray(true); };
+  }
+  let popTimer = null;
+  Dice.listen(entry => {
+    const pop = document.querySelector('[data-ref="rollPop"]');
+    if (!pop || !isPhone() || document.body.classList.contains('tray-open')) return;
+    const mode = entry.mode === 'adv' ? ', advantage' : entry.mode === 'dis' ? ', disadvantage' : '';
+    pop.className = `roll-pop ${entry.nat === 20 ? 'crit' : entry.nat === 1 ? 'fumble' : ''}`;
+    pop.innerHTML = `<b>${entry.total}</b><span>${Util.esc(entry.label || entry.expr)}<small>${Util.esc(entry.expr)}${mode}</small></span>`;
+    pop.hidden = false;
+    clearTimeout(popTimer);
+    popTimer = setTimeout(() => { pop.classList.add('out'); setTimeout(() => { pop.hidden = true; }, 300); }, 3500);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') openTray(false); });
 
   /* Small badge in the top bar while you're in a party room. */
   function renderRoomPill() {
@@ -82,7 +109,7 @@ const App = (() => {
     pill.hidden = !live;
     if (!live) return;
     pill.dataset.status = st.status;
-    pill.innerHTML = `<span class="dot"></span>${st.status === 'open' ? 'Room' : 'Connecting'} <b>${st.code}</b>`;
+    pill.innerHTML = `<span class="dot"></span><span class="room-word">${st.status === 'open' ? 'Room' : 'Connecting'} </span><b>${st.code}</b>`;
   }
   Room.on(renderRoomPill);
 
@@ -117,6 +144,7 @@ const App = (() => {
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
 
+    document.body.classList.remove('no-fab', 'tray-open');
     const main = document.getElementById('main');
     main.dataset.page = page;
     const view = document.createElement('div');

@@ -303,6 +303,8 @@ const Creator = (() => {
   function mount(el, { onDone, onCancel }) {
     const ch = fresh();
     let step = 0;
+    // On phones the floating dice button would cover the Next button here.
+    document.body.classList.add('no-fab');
 
     el.innerHTML = `
       <div class="creator">
