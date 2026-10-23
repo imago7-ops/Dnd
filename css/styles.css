@@ -678,6 +678,25 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; m
 .entry-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .entry-actions .btn-ghost-danger { margin-left: auto; }
 
+.entry-row { display: flex; align-items: center; gap: 6px; padding-right: 8px; }
+.entry-row .entry-head { flex: 1; min-width: 0; }
+.entry .chev { order: 0; margin-right: 2px; }
+.vis-toggle {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 4px 10px 4px 8px; border-radius: 999px; font-size: .82rem; font-weight: 700;
+  background: transparent; border: 1px solid var(--line); color: var(--faint);
+}
+.vis-toggle:hover { border-color: var(--muted); color: var(--muted); }
+.vis-toggle svg { width: 16px; height: 16px; }
+.vis-toggle .ico { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.vis-toggle.known { background: var(--accent-soft); border-color: rgba(92, 191, 174, .45); color: var(--accent-hi); }
+.vis-toggle.known:hover { border-color: var(--accent); }
+.entry.is-hidden .entry-name { color: #cfc9bb; }
+.known-count { font-size: .82rem; color: var(--faint); }
+.bulk { display: flex; gap: 2px; font-size: .88rem; }
+.bulk .link-btn:disabled { color: var(--faint); opacity: .5; cursor: default; text-decoration: none; }
+.vis-filter button { white-space: nowrap; }
+
 .nb-add-section { display: flex; gap: 8px; max-width: 560px; }
 .nb-add-section input { flex: 1; }
 

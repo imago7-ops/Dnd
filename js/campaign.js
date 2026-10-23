@@ -227,6 +227,7 @@ const Campaign = (() => {
   function mount(el) {
     const cp = campaign();
     let query = '';
+    let show = 'all'; // all | known | hidden
 
     el.innerHTML = `
       <div class="notebook">
@@ -237,6 +238,7 @@ const Campaign = (() => {
           </div>
           <div class="nb-tools">
             <input type="search" class="nb-search" data-ref="search" placeholder="Search everything" aria-label="Search the campaign">
+            <div class="seg vis-filter" role="radiogroup" aria-label="Show entries" data-ref="filter"></div>
             <button class="btn" data-action="expand">Expand all</button>
             <button class="btn" data-action="collapse">Collapse all</button>
             <button class="btn" data-action="export">Download</button>
@@ -272,8 +274,27 @@ const Campaign = (() => {
     }
 
     function matches(entry) {
+      if (show === 'known' && !entry.known) return false;
+      if (show === 'hidden' && entry.known) return false;
       if (!query) return true;
       return Object.values(entry.f).some(v => String(v).toLowerCase().includes(query));
+    }
+
+    const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="ico" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle class="ico" cx="12" cy="12" r="3"/></svg>';
+    const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="ico" d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17.6 17.6 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+
+    function visButton(e) {
+      const known = Boolean(e.known);
+      return `<button class="vis-toggle ${known ? 'known' : ''}" data-action="toggle-known" aria-pressed="${known}"
+        title="${known ? 'Players know about this. Click to hide it.' : 'Hidden from players. Click to mark it known.'}">
+        ${known ? EYE : EYE_OFF}<span>${known ? 'Known' : 'Hidden'}</span></button>`;
+    }
+
+    function renderFilter() {
+      const all = cp.sections.reduce((n, sec) => n + sec.entries.length, 0);
+      const known = cp.sections.reduce((n, sec) => n + sec.entries.filter(x => x.known).length, 0);
+      ref('filter').innerHTML = [['all', `All (${all})`], ['known', `Known (${known})`], ['hidden', `Hidden (${all - known})`]]
+        .map(([k, label]) => `<button role="radio" data-show="${k}" class="${show === k ? 'on' : ''}" aria-checked="${show === k}">${label}</button>`).join('');
     }
 
     function summaryOf(t, e) {
@@ -285,13 +306,16 @@ const Campaign = (() => {
       const badge = t.badge && e.f[t.badge] ? `${t.badgePrefix || ''}${e.f[t.badge]}` : '';
       const open = e.open || (query && matches(e));
       return `
-        <article class="entry ${open ? 'open' : ''}" data-entry="${e.id}">
-          <button class="entry-head" data-action="toggle-entry" aria-expanded="${open}">
-            <span class="entry-name ${e.f.name ? '' : 'unnamed'}">${esc(e.f.name || `Unnamed ${t.one}`)}</span>
-            <span class="entry-meta">${esc(summaryOf(t, e))}</span>
-            ${badge ? `<span class="badge" data-tone="${esc(String(e.f[t.badge]).toLowerCase().replace(/\s+/g, '-'))}">${esc(badge)}</span>` : ''}
-            <span class="chev" aria-hidden="true"></span>
-          </button>
+        <article class="entry ${open ? 'open' : ''} ${e.known ? 'is-known' : 'is-hidden'}" data-entry="${e.id}">
+          <div class="entry-row">
+            <button class="entry-head" data-action="toggle-entry" aria-expanded="${open}">
+              <span class="chev" aria-hidden="true"></span>
+              <span class="entry-name ${e.f.name ? '' : 'unnamed'}">${esc(e.f.name || `Unnamed ${t.one}`)}</span>
+              <span class="entry-meta">${esc(summaryOf(t, e))}</span>
+              ${badge ? `<span class="badge" data-tone="${esc(String(e.f[t.badge]).toLowerCase().replace(/\s+/g, '-'))}">${esc(badge)}</span>` : ''}
+            </button>
+            ${visButton(e)}
+          </div>
           ${open ? `<div class="entry-body">
             <div class="entry-grid">
               ${t.fields.map(([k, label, type, opt]) => fieldHTML(k, label, type, opt, e.f[k])).join('')}
@@ -326,6 +350,10 @@ const Campaign = (() => {
       const shown = sec.entries.filter(matches);
       if (query && !shown.length) return '';
       const open = sec.open || Boolean(query);
+      const knownCount = sec.entries.filter(x => x.known).length;
+      const emptyMsg = sec.entries.length && show !== 'all'
+        ? `<p class="nb-empty">No ${show} ${esc(sec.label.toLowerCase())}.</p>`
+        : `<p class="nb-empty">${esc(t.blurb)} <button class="link-btn" data-action="add-entry">Add the first ${esc(t.one)}</button></p>`;
       return `
         <section class="nb-section ${open ? 'open' : ''}" data-section="${sec.id}" style="--c:${t.color}">
           <div class="nb-section-head">
@@ -334,12 +362,17 @@ const Campaign = (() => {
               <span class="swatch"></span>
               <span class="nb-label">${esc(sec.label)}</span>
               <span class="count">${sec.entries.length}</span>
+              ${sec.entries.length ? `<span class="known-count">${knownCount} known</span>` : ''}
             </button>
+            ${open && sec.entries.length ? `<span class="bulk">
+              <button class="link-btn" data-action="reveal-all" ${knownCount === sec.entries.length ? 'disabled' : ''}>Reveal all</button>
+              <button class="link-btn" data-action="hide-all" ${knownCount === 0 ? 'disabled' : ''}>Hide all</button>
+            </span>` : ''}
             ${TYPES[sec.type] ? '' : `<button class="link-btn" data-action="delete-section">Remove section</button>`}
             <button class="btn btn-add" data-action="add-entry">Add ${esc(t.one)}</button>
           </div>
           ${open ? `<div class="nb-section-body" id="sec-${sec.id}">
-            ${shown.length ? shown.map(e => entryHTML(sec, e)).join('') : `<p class="nb-empty">${esc(t.blurb)} <button class="link-btn" data-action="add-entry">Add the first ${esc(t.one)}</button></p>`}
+            ${shown.length ? shown.map(e => entryHTML(sec, e)).join('') : emptyMsg}
           </div>` : ''}
         </section>`;
     }
@@ -349,6 +382,7 @@ const Campaign = (() => {
       ref('sections').innerHTML = html || `<p class="nb-empty">Nothing matches “${esc(query)}”.</p>`;
       ref('sections').querySelectorAll('textarea').forEach(autoSize);
       renderLists();
+      renderFilter();
     }
 
     function autoSize(t) {
@@ -360,7 +394,8 @@ const Campaign = (() => {
       const t = typeOf(sec);
       const f = {};
       t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
-      const e = { id: Util.uid(), open: true, f };
+      const e = { id: Util.uid(), open: true, known: false, f };
+      if (show === 'known') e.known = true;
       sec.entries.unshift(e);
       sec.open = true;
       Store.save();
@@ -405,7 +440,8 @@ const Campaign = (() => {
     /* ---------- Events ---------- */
     el.addEventListener('click', e => {
       const btn = e.target.closest('button');
-      if (!btn) return;
+      if (!btn || btn.disabled) return;
+      if (btn.dataset.show) { show = btn.dataset.show; return render(); }
       const a = btn.dataset.action;
       if (!a) return;
       const ctx = btn.closest('[data-section]') ? findEntry(btn) : {};
@@ -414,6 +450,19 @@ const Campaign = (() => {
           if (query) return;
           ctx.sec.open = !ctx.sec.open; Store.save(); return render();
         case 'add-entry': return addEntry(ctx.sec);
+        case 'toggle-known': {
+          ctx.entry.known = !ctx.entry.known;
+          Store.save();
+          render();
+          el.querySelector(`[data-entry="${ctx.entry.id}"] .vis-toggle`)?.focus({ preventScroll: true });
+          return;
+        }
+        case 'reveal-all':
+        case 'hide-all':
+          ctx.sec.entries.forEach(x => { x.known = a === 'reveal-all'; });
+          Store.save();
+          render();
+          return Util.toast(a === 'reveal-all' ? `All ${ctx.sec.label.toLowerCase()} are now known to players.` : `All ${ctx.sec.label.toLowerCase()} are now hidden.`);
         case 'toggle-entry':
           ctx.entry.open = !ctx.entry.open; Store.save(); render();
           if (ctx.entry.open) el.querySelector(`[data-entry="${ctx.entry.id}"] .entry-body [data-field]`)?.focus({ preventScroll: true });

@@ -7,6 +7,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 **First visit:** choose whether you're a **Player** or the **Dungeon Master**
 - A campaign notebook with a collapsible section for each part of the campaign: NPCs, Locations, Factions, Bosses, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes. Add your own sections too (Gods, Ships, Rumors…).
 - Each entry is a row you can expand into a form with fields that suit it: NPC attitude and secrets, faction goals and standing, boss CR, HP and legendary actions, abnormality causes and effects, and so on. Names of locations, factions and NPCs are suggested in related fields.
+- Mark any entry **Known** or **Hidden** with the switch on its row. New entries start Hidden. Filter to see only what the players know (or only your secrets), and use Reveal all / Hide all on a section.
 - Weather entries can roll random conditions for the season, with their effects on travel and combat.
 - NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
 - Search across the whole campaign, expand or collapse everything, and download/upload the campaign as a `.json` file. Cards from the earlier board layout carry over automatically.
