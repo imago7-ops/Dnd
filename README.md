@@ -11,6 +11,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 - Subclasses: all 123 official ones, grouped as Player's Handbook (2024) and other official books (Xanathar's, Tasha's, Sword Coast, Wildemount, Fizban's, Van Richten's, Bigby's, Dragonlance, Heroes of Faerûn and the 2014 core books), plus an "Other / homebrew" option where you type any name.
 - Or start from a blank sheet, or upload a character you saved before (`.json`).
 - Full 5e sheet: abilities, saving throws, 18 skills (click the dot for proficiency, twice for expertise), AC, initiative, speed, HP with damage/heal, hit dice, death saves, attacks, features, equipment, spells and notes.
+- **Level up (or down) an existing character:** click "Level up" or change the Level field. A dialog asks for your choices (average or rolled HP, Ability Score Improvement or a feat, a subclass if you reach level 3 without one) and shows everything that changes. Applying it updates HP (including Constitution increases for every level), hit dice, ability scores, AC, initiative, speed, attacks, class resources, the features list and spellcasting. Lowering the level undoes those changes.
 - Proficiency bonus and every modifier calculate themselves from your level and scores.
 - "Roll scores" (4d6, drop lowest) or "Standard array" to fill abilities.
 - Click any number on the sheet to roll it.
@@ -42,6 +43,7 @@ js/store.js        helpers + saving to localStorage
 js/dice.js         dice engine and the dice tray
 js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasses
 js/creator.js      step-by-step character creator
+js/levelup.js      level up / level down dialog
 js/character.js    player character sheet
 js/combat.js       initiative / combat tracker
 js/campaign.js     DM campaign canvas

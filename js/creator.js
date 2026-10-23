@@ -101,6 +101,9 @@ const Creator = (() => {
 
   function acOf(ch, scores) {
     const ac = R.CLASSES[ch.className].ac;
+    return acFor(ac, scores);
+  }
+  function acFor(ac, scores) {
     const dex = modOf(scores.dex);
     if (ac.type === 'unarmored') return 10 + dex + modOf(scores[ac.extra]);
     if (ac.type === 'armor') {
@@ -110,34 +113,51 @@ const Creator = (() => {
     return 10 + dex;
   }
 
+  /*
+   * Attacks made by the creator remember how they're calculated (`auto`), so a level-up or
+   * ability score change can recalculate them. Hand-typed attacks have no `auto`.
+   */
+  function recalcAttack(a, scores, level, className) {
+    const au = a.auto;
+    if (!au) return a;
+    const pb = R.profBonus(level);
+    const m = k => modOf(scores[k]);
+    const dmg = (dice, mod) => (mod === 0 ? dice : `${dice}${mod > 0 ? '+' : ''}${mod}`);
+    const monkCl = R.CLASSES.Monk;
+    if (au.kind === 'unarmed') {
+      a.bonus = pb + m('str');
+      a.damage = String(Math.max(1, 1 + m('str')));
+    } else if (au.kind === 'monk-unarmed') {
+      const ab = Math.max(m('str'), m('dex'));
+      a.bonus = pb + ab;
+      a.damage = dmg('1' + monkCl.martialDie(level), ab);
+    } else {
+      let ab = au.kind === 'finesse' || au.monk ? Math.max(m('str'), m('dex')) : m(au.kind);
+      let die = au.die;
+      if (au.monk && className === 'Monk') {
+        const md = Number(monkCl.martialDie(level).slice(1));
+        if (md > Number(die.split('d')[1])) die = '1d' + md;
+      }
+      a.bonus = pb + ab;
+      a.damage = dmg(die, ab);
+    }
+    return a;
+  }
+
   function attacksOf(ch, scores) {
     const cl = R.CLASSES[ch.className];
-    const pb = R.profBonus(ch.level);
-    const m = a => modOf(scores[a]);
     const isMonk = ch.className === 'Monk';
-    const dmg = (dice, mod) => (mod === 0 ? dice : `${dice}${mod > 0 ? '+' : ''}${mod}`);
     const out = [];
     cl.weaponsHeld.forEach(name => {
       if (name === 'Unarmed Strike') {
-        const ab = Math.max(m('str'), m('dex'));
-        out.push({ id: Util.uid(), name: 'Unarmed Strike', bonus: pb + ab, damage: dmg('1' + cl.martialDie(ch.level), ab) });
+        out.push({ id: Util.uid(), name, auto: { kind: 'monk-unarmed' } });
         return;
       }
-      const [dice, kind] = R.WEAPONS[name];
-      let ab = kind === 'finesse' ? Math.max(m('str'), m('dex')) : m(kind);
-      let die = dice;
-      if (isMonk && (name === 'Spear' || name === 'Dagger')) {
-        ab = Math.max(m('str'), m('dex'));
-        const md = Number(cl.martialDie(ch.level).slice(1));
-        if (md > Number(dice.split('d')[1])) die = '1d' + md;
-      }
-      out.push({ id: Util.uid(), name, bonus: pb + ab, damage: dmg(die, ab) });
+      const [die, kind] = R.WEAPONS[name];
+      out.push({ id: Util.uid(), name, auto: { kind, die, monk: isMonk && (name === 'Spear' || name === 'Dagger') } });
     });
-    if (!isMonk) {
-      const str = m('str');
-      out.push({ id: Util.uid(), name: 'Unarmed Strike', bonus: pb + str, damage: String(Math.max(1, 1 + str)) });
-    }
-    return out;
+    if (!isMonk) out.push({ id: Util.uid(), name: 'Unarmed Strike', auto: { kind: 'unarmed' } });
+    return out.map(a => recalcAttack(a, scores, ch.level, ch.className));
   }
 
   function classFeatureLines(ch) {
@@ -235,6 +255,9 @@ const Creator = (() => {
     const hp = hpOf(ch, scores);
     c.hp = { current: hp, max: hp, temp: 0 };
     c.hitDice = `${L}d${cl.die}`;
+    // Hit die result for each level (Con and other bonuses are added separately).
+    c.hpLog = Array.from({ length: L }, (_, i) => (i === 0 ? cl.die : cl.die / 2 + 1));
+    c.asiLog = {};
     c.attacks = attacksOf(ch, scores);
 
     // Features & traits
@@ -820,5 +843,5 @@ const Creator = (() => {
     render();
   }
 
-  return { mount, build };
+  return { mount, build, classFeatureLines, recalcAttack, acFor, feats };
 })();

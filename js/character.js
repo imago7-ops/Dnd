@@ -173,6 +173,7 @@ const Character = (() => {
               </select>
             </label>` : ''}
           <div class="bar-actions">
+            <button class="btn btn-primary" data-action="level-up" ${Util.num(c.level, 1) >= 20 ? 'disabled' : ''}>Level up</button>
             <button class="btn" data-action="new">New character</button>
             <button class="btn" data-action="upload">Upload</button>
             <button class="btn" data-action="download">Download</button>
@@ -385,6 +386,8 @@ const Character = (() => {
 
     el.oninput = e => {
       const t = e.target;
+      // Level changes go through the level-up dialog once the field is committed.
+      if (t.dataset.bind === 'level') return;
       if (t.dataset.bind) {
         let v;
         if (t.type === 'checkbox') v = t.checked;
@@ -400,6 +403,10 @@ const Character = (() => {
           const dl = el.querySelector('#dl-subclasses');
           if (dl) dl.innerHTML = subclassOptions(t.value);
         }
+        if (t.dataset.bind.startsWith('abilities.') && c.attacks.some(a => a.auto)) {
+          c.attacks.forEach(a => { if (a.auto && typeof Creator !== 'undefined') Creator.recalcAttack(a, c.abilities, Util.clamp(Util.num(c.level, 1), 1, 20), c.className); });
+          el.querySelector('[data-ref="attacks"]').innerHTML = attacksHTML(c);
+        }
         if (t.dataset.bind === 'className' && CLASSES[t.value] && /^\d+d\d+$/.test(c.hitDice)) {
           c.hitDice = `${c.level}d${CLASSES[t.value]}`;
           el.querySelector('[data-bind="hitDice"]').value = c.hitDice;
@@ -407,13 +414,18 @@ const Character = (() => {
       } else if (t.dataset.atk) {
         const a = c.attacks.find(x => x.id === t.closest('[data-attack]').dataset.attack);
         a[t.dataset.atk] = t.dataset.atk === 'bonus' ? Util.num(t.value, 0) : t.value;
+        // Once hand-edited, an attack is no longer recalculated automatically.
+        if (t.dataset.atk !== 'name') delete a.auto;
       } else {
         return;
       }
       Store.save();
       updateDerived(el, c);
     };
-    el.onchange = el.oninput;
+    el.onchange = e => {
+      if (e.target.dataset.bind === 'level') return changeLevel(el, c, e.target.value);
+      el.oninput(e);
+    };
 
     el.onclick = e => {
       const btn = e.target.closest('button');
@@ -435,6 +447,7 @@ const Character = (() => {
         return mountSheet(el);
       }
       switch (btn.dataset.action) {
+        case 'level-up': return changeLevel(el, c, Util.num(c.level, 1) + 1);
         case 'new': return createNew(el);
         case 'upload': return upload(el);
         case 'download':
@@ -479,6 +492,25 @@ const Character = (() => {
     el.querySelector('[data-ref="hpamt"]').onkeydown = e => {
       if (e.key === 'Enter') adjustHP(c, el, e.shiftKey ? 'heal' : 'damage');
     };
+  }
+
+  /* Open the level-up dialog; the sheet only changes if the player applies it. */
+  function changeLevel(el, c, value) {
+    const field = el.querySelector('[data-bind="level"]');
+    const from = Util.clamp(Util.num(c.level, 1), 1, 20);
+    const to = Util.clamp(Util.num(value, from), 1, 20);
+    if (to === from) { field.value = from; return; }
+    LevelUp.open(c, to, {
+      onApply(result) {
+        const list = Store.state.characters;
+        const i = list.findIndex(x => x.id === c.id);
+        list[i] = result;
+        Store.save();
+        mountSheet(el);
+        Util.toast(to > from ? `${result.name || 'Character'} is now level ${to}.` : `${result.name || 'Character'} is back to level ${to}.`);
+      },
+      onCancel() { field.value = from; },
+    });
   }
 
   /* Two-click delete: first click arms the button. */
