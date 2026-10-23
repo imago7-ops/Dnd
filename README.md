@@ -4,24 +4,12 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 
 ## What's in the MVP
 
-**First visit:** choose whether you're a **Player** or the **Dungeon Master**. You can switch any time with "Switch role" in the top bar.
-
-**Player**
-- Create a new character with the step-by-step creator (2024 rules): species, background, class, level and subclass, ability scores, then a name. It fills in the whole sheet for you: ability scores with background bonuses, saves, skills, HP, AC, speed, initiative, hit dice, starting attacks, species traits, class and subclass features by level, origin feats, proficiencies and languages, starting equipment, and spellcasting (save DC, attack bonus, cantrips, prepared spells, spell slots). Every field stays editable.
-- Subclasses: all 123 official ones, grouped as Player's Handbook (2024) and other official books (Xanathar's, Tasha's, Sword Coast, Wildemount, Fizban's, Van Richten's, Bigby's, Dragonlance, Heroes of Faerûn and the 2014 core books), plus an "Other / homebrew" option where you type any name.
-- Or start from a blank sheet, or upload a character you saved before (`.json`).
-- Full 5e sheet: abilities, saving throws, 18 skills (click the dot for proficiency, twice for expertise), AC, initiative, speed, HP with damage/heal, hit dice, death saves, attacks, features, equipment, spells and notes.
-- **Level up (or down) an existing character:** click "Level up" or change the Level field. A dialog asks for your choices (average or rolled HP, Ability Score Improvement or a feat, a subclass if you reach level 3 without one) and shows everything that changes. Applying it updates HP (including Constitution increases for every level), hit dice, ability scores, AC, initiative, speed, attacks, class resources, the features list and spellcasting. Lowering the level undoes those changes.
-- Proficiency bonus and every modifier calculate themselves from your level and scores.
-- "Roll scores" (4d6, drop lowest) or "Standard array" to fill abilities.
-- Click any number on the sheet to roll it.
-- Keep several characters and switch between them. Download a character to back it up or move it to another computer.
-
-**Dungeon Master**
-- An empty campaign canvas. Add Location, NPC, Quest, Encounter, Item and Note cards from the bar at the bottom, or double-click the table to drop a note.
-- Drag cards by their header, drag empty space to pan, scroll to zoom, "Recenter" to find your cards again.
-- NPC and Encounter cards have "Add to combat".
-- Download/upload the whole campaign as a `.json` file.
+**First visit:** choose whether you're a **Player** or the **Dungeon Master**
+- A campaign notebook with a collapsible section for each part of the campaign: NPCs, Locations, Factions, Bosses, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes. Add your own sections too (Gods, Ships, Rumors…).
+- Each entry is a row you can expand into a form with fields that suit it: NPC attitude and secrets, faction goals and standing, boss CR, HP and legendary actions, abnormality causes and effects, and so on. Names of locations, factions and NPCs are suggested in related fields.
+- Weather entries can roll random conditions for the season, with their effects on travel and combat.
+- NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
+- Search across the whole campaign, expand or collapse everything, and download/upload the campaign as a `.json` file. Cards from the earlier board layout carry over automatically.
 
 **Everyone**
 - **Dice tray** on the right of every page: d4–d100 buttons, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can click to roll again.
@@ -32,6 +20,7 @@ Everything saves automatically in your browser's local storage.
 ## Run it
 
 - **Locally:** double-click `index.html`.
+- **Share links:** `https://imago7-ops.github.io/Dnd/#/character` opens the Player page directly, and `#/campaign` opens the DM page.
 - **On the web (free):** in your GitHub repo go to **Settings → Pages**, set **Source** to "Deploy from a branch", pick `main` and `/ (root)`, and save. After a minute your site is at `https://imago7-ops.github.io/Dnd/`.
 
 ## Project layout
@@ -46,7 +35,7 @@ js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet
 js/combat.js       initiative / combat tracker
-js/campaign.js     DM campaign canvas
+js/campaign.js     DM campaign notebook
 js/app.js          role picker and page routing
 ```
 

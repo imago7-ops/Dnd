@@ -35,7 +35,7 @@ const App = (() => {
             <button class="role-card role-dm" data-role="dm">
               <span class="role-art">${MAP_SVG}</span>
               <span class="role-title">I'm the Dungeon Master</span>
-              <span class="role-desc">Start with an empty table and build your campaign: places, people, quests and encounters, then run the fight.</span>
+              <span class="role-desc">Build your campaign section by section: NPCs, locations, factions, bosses, weather and more, then run the fight.</span>
               <span class="role-go">Start as the DM</span>
             </button>
           </div>
@@ -71,8 +71,14 @@ const App = (() => {
   }
 
   function route() {
-    const role = Store.state.role;
     let page = currentPage();
+    // Shared links go straight to a role's page: #/character = player, #/campaign = DM.
+    const linkRole = { character: 'player', campaign: 'dm' }[page];
+    if (linkRole && Store.state.role !== linkRole) {
+      Store.state.role = linkRole;
+      Store.flush();
+    }
+    const role = Store.state.role;
 
     if (!role || page === 'welcome') {
       return welcome();

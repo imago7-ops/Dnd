@@ -11,7 +11,7 @@ const Combat = (() => {
     st().combatants.sort((a, b) => (b.init - a.init) || (b.initBonus - a.initBonus) || a.name.localeCompare(b.name));
   }
 
-  /* Add from anywhere (sheet, campaign canvas). */
+  /* Add from anywhere (sheet, campaign notebook). */
   function add(c) {
     const cb = {
       id: Util.uid(),
