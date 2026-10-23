@@ -434,7 +434,7 @@ const Campaign = (() => {
         for (let i = 1; i <= count; i++) Combat.add({ name: count > 1 ? `${name} ${i}` : name, kind: 'enemy', hp: 10, ac: 12 });
         total += count;
       });
-      Util.toast(`${total} creature${total > 1 ? 's' : ''} added to combat. Set HP and AC on the Combat tab.`);
+      Util.toast(`${total} creature${total > 1 ? 's' : ''} added to the combat tracker in the Party room. Set their HP and AC there.`);
     }
 
     /* ---------- Events ---------- */
@@ -550,5 +550,42 @@ const Campaign = (() => {
     autoSize(ref('pitch'));
   }
 
-  return { mount };
+  /*
+   * What players may see: only entries marked Known, and only their non-secret fields
+   * (no secrets, notes, true causes, boss tactics, stats or loot).
+   */
+  const PUBLIC = {
+    npcs: ['role', 'location', 'faction', 'appearance'],
+    locations: ['kind', 'region', 'description', 'points'],
+    factions: ['leader', 'base', 'goals'],
+    bosses: ['location'],
+    weather: ['region', 'season', 'conditions', 'temperature', 'wind', 'effects'],
+    abnormalities: ['kind', 'location', 'description'],
+    quests: ['status', 'giver', 'location', 'reward', 'description'],
+    encounters: ['location'],
+    items: ['rarity', 'attunement', 'holder', 'description'],
+    lore: ['era', 'details'],
+    sessions: ['date', 'summary'],
+    custom: ['details'],
+  };
+
+  function publicKnown() {
+    const cp = Store.state.campaign;
+    if (!cp || !Array.isArray(cp.sections)) return [];
+    return cp.sections.map(sec => {
+      const t = TYPES[sec.type] || CUSTOM;
+      const keys = PUBLIC[sec.type] || PUBLIC.custom;
+      const entries = sec.entries.filter(e => e.known).map(e => ({
+        id: e.id,
+        name: e.f.name || `Unnamed ${t.one}`,
+        fields: keys.map(k => {
+          const def = t.fields.find(f => f[0] === k);
+          return def && e.f[k] ? [def[1], String(e.f[k])] : null;
+        }).filter(Boolean),
+      }));
+      return { label: sec.label, color: t.color, entries };
+    }).filter(sec => sec.entries.length);
+  }
+
+  return { mount, publicKnown };
 })();

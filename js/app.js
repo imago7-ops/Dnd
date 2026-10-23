@@ -3,10 +3,10 @@
 /* App shell, role choice and page routing (#/character, #/campaign, #/combat). */
 const App = (() => {
   const PAGES = {
-    player: [['character', 'Character'], ['combat', 'Combat']],
-    dm: [['campaign', 'Campaign'], ['combat', 'Combat']],
+    player: [['character', 'Character'], ['room', 'Party room']],
+    dm: [['campaign', 'Campaign'], ['room', 'Party room']],
   };
-  const MODULES = { character: Character, campaign: Campaign, combat: Combat };
+  const MODULES = { character: Character, campaign: Campaign, room: Party };
   const ROLE_NAME = { player: 'Player', dm: 'Dungeon Master' };
 
   const MAP_SVG = `<svg viewBox="0 0 120 100" aria-hidden="true"><path class="map-sheet" d="M8 18 L40 8 L80 18 L112 8 L112 82 L80 92 L40 82 L8 92 Z"/><path class="map-fold" d="M40 8 L40 82 M80 18 L80 92"/><path class="map-route" d="M20 70 C 34 58, 30 40, 52 42 S 76 58, 92 34"/><path class="map-x" d="M88 28 L98 38 M98 28 L88 38"/></svg>`;
@@ -45,6 +45,7 @@ const App = (() => {
     app.querySelector('.role-grid').addEventListener('click', e => {
       const btn = e.target.closest('[data-role]');
       if (!btn) return;
+      if (Room.state.mode && Store.state.role !== btn.dataset.role) Room.leave();
       Store.state.role = btn.dataset.role;
       Store.flush();
       location.hash = '#/' + PAGES[btn.dataset.role][0][0];
@@ -60,6 +61,7 @@ const App = (() => {
             ${PAGES[role].map(([k, label]) => `<a href="#/${k}" data-page="${k}">${label}</a>`).join('')}
           </nav>
           <div class="topbar-end">
+            <a class="room-pill" data-ref="roomPill" href="#/room" hidden></a>
             <span class="role-pill role-${role}">${ROLE_NAME[role]}</span>
             <a class="link-btn" href="#/welcome">Switch role</a>
           </div>
@@ -68,10 +70,25 @@ const App = (() => {
         <aside class="tray-col" id="tray"></aside>
       </div>`;
     Dice.mount(document.getElementById('tray'));
+    renderRoomPill();
   }
+
+  /* Small badge in the top bar while you're in a party room. */
+  function renderRoomPill() {
+    const pill = document.querySelector('[data-ref="roomPill"]');
+    if (!pill) return;
+    const st = Room.state;
+    const live = st.mode && (st.status === 'open' || st.status === 'connecting' || st.status === 'reconnecting');
+    pill.hidden = !live;
+    if (!live) return;
+    pill.dataset.status = st.status;
+    pill.innerHTML = `<span class="dot"></span>${st.status === 'open' ? 'Room' : 'Connecting'} <b>${st.code}</b>`;
+  }
+  Room.on(renderRoomPill);
 
   function route() {
     let page = currentPage();
+    if (page === 'combat') { page = 'room'; history.replaceState(null, '', '#/room'); }
     // Shared links go straight to a role's page: #/character = player, #/campaign = DM.
     const linkRole = { character: 'player', campaign: 'dm' }[page];
     if (linkRole && Store.state.role !== linkRole) {
@@ -111,6 +128,7 @@ const App = (() => {
 
   window.addEventListener('hashchange', route);
   route();
+  Room.resume();
 
   return { route };
 })();

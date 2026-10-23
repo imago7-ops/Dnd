@@ -256,6 +256,7 @@ const Dice = (() => {
 
     const onRoll = entry => {
       if (!el.isConnected) { listeners.delete(onRoll); return; }
+      if (entry.remote) return;
       show(entry, true);
       renderHistory();
       renderMode();
@@ -267,5 +268,8 @@ const Dice = (() => {
     if (Store.state.rolls[0]) show(Store.state.rolls[0], false);
   }
 
-  return { roll, evaluate, parse, mount, D20_SVG };
+  /* Get told about every recorded roll (used by the party room). */
+  function listen(fn) { listeners.add(fn); }
+
+  return { roll, evaluate, parse, mount, listen, breakdownHTML, D20_SVG };
 })();

@@ -558,7 +558,7 @@ const Character = (() => {
     if (kind === 'check') return rollD20(mod(c.abilities[key]), `${ABIL_NAME[key]} check`);
     if (kind === 'save') return rollD20(saveBonus(c, key), `${ABIL_NAME[key]} save`);
     if (kind === 'skill') return rollD20(skillBonus(c, key), SKILLS.find(s => s[0] === key)[1]);
-    if (kind === 'init') return rollD20(initBonus(c), `${who} initiative`);
+    if (kind === 'init') return rollD20(initBonus(c), 'Initiative');
     if (kind === 'atk' || kind === 'dmg') {
       const a = c.attacks.find(x => x.id === key);
       if (!a) return;

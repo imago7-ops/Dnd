@@ -77,7 +77,9 @@ const Util = {
 
 /* Everything is saved to localStorage in this browser. */
 const Store = (() => {
-  const KEY = 'campaign-codex.v1';
+  // ?profile=name keeps separate saved data per tab (used for testing the party room).
+  const profile = (/[?&]profile=([\w-]+)/.exec(location.search) || [])[1];
+  const KEY = 'campaign-codex.v1' + (profile ? `.${profile}` : '');
   const defaults = () => ({
     role: null,                 // 'player' | 'dm'
     characters: [],
@@ -106,6 +108,8 @@ const Store = (() => {
   function save() {
     clearTimeout(timer);
     timer = setTimeout(flush, 200);
+    // Lets the party room notice changes (combat, character, campaign) and share them.
+    window.dispatchEvent(new CustomEvent('codex:save'));
   }
   window.addEventListener('beforeunload', () => { if (timer) flush(); });
 

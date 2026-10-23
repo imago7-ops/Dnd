@@ -33,15 +33,15 @@ const Combat = (() => {
     return cb;
   }
 
-  function mount(el) {
-    const isPlayer = Store.state.role === 'player';
+  function mount(el, opts = {}) {
+    const isPlayer = Store.state.role === 'player' && !opts.embedded;
     const me = isPlayer ? Character.active() : null;
 
     el.innerHTML = `
       <div class="combat">
         <div class="combat-top">
           <div>
-            <h1>Combat</h1>
+            ${opts.embedded ? '<h2>Combat tracker</h2>' : '<h1>Combat</h1>'}
             <p class="lede" data-ref="status"></p>
           </div>
           <div class="turn-controls" data-ref="turn"></div>
@@ -271,8 +271,16 @@ const Combat = (() => {
       }
     });
 
+    // Re-draw when the party room changes combat (a player rolled initiative, etc.).
+    const onExternal = () => {
+      if (!el.isConnected) { window.removeEventListener('codex:combat', onExternal); return; }
+      if (el.contains(document.activeElement) && document.activeElement.matches('input, select')) return;
+      render();
+    };
+    window.addEventListener('codex:combat', onExternal);
+
     render();
   }
 
-  return { mount, add };
+  return { mount, add, sortOrder };
 })();

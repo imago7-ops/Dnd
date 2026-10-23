@@ -12,9 +12,16 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 - NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
 - Search across the whole campaign, expand or collapse everything, and download/upload the campaign as a `.json` file. Cards from the earlier board layout carry over automatically.
 
+**Party room** (both roles)
+- The DM clicks **Host a party room** and gets a 5-character code. Players open **Party room**, type the code, pick the character they're bringing, and join from their own computers.
+- **DM view:** the combat tracker, "Add the party to combat" (rolls initiative for everyone), the party list with each character's HP, AC and passive Perception, and the table talk feed.
+- **Player view:** the live turn order (enemy health shows only as Healthy / Bloodied / Down), a Roll initiative button, "What the party knows" (the DM's entries marked Known, without secret fields), the party list and table talk.
+- **Table talk:** chat plus shared dice rolls. Players share rolls by default; the DM's rolls stay private unless they tick "Share my rolls".
+- Damage taken on a player's sheet updates the DM's tracker and party list. Reloading the page reconnects automatically.
+- How it connects: browsers talk directly to the DM's browser using WebRTC via [PeerJS](https://peerjs.com/) and its free public connection broker, so there's no server or account to set up. The DM's tab has to stay open while you play. Some very strict networks (some schools and offices) block direct connections.
+
 **Everyone**
 - **Dice tray** on the right of every page: d4–d100 buttons, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can click to roll again.
-- **Combat tracker:** add creatures (with a count, e.g. 3 goblins), leave initiative blank to auto-roll, start combat to sort by initiative, then Next turn / Previous with a round counter. Track HP (type an amount, press Enter for damage or Shift+Enter to heal), AC and conditions.
 
 Everything saves automatically in your browser's local storage.
 
@@ -35,8 +42,10 @@ js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasse
 js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet
-js/combat.js       initiative / combat tracker
 js/campaign.js     DM campaign notebook
+js/room.js         party room connections (host, join, sync)
+js/party.js        party room page
+js/combat.js       combat tracker (shown inside the party room)
 js/app.js          role picker and page routing
 ```
 
@@ -46,3 +55,7 @@ js/app.js          role picker and page routing
 - Spell and monster lookups from the 5e SRD.
 - Links between canvas cards, and maps/images on the canvas.
 - Player view of the DM's initiative order.
+
+## Testing the party room on one computer
+
+Add `?transport=local&profile=NAME` to the address (served from a local web server, e.g. `python -m http.server`) to use an in-browser stand-in for the network. Each tab with a different `profile` keeps its own saved data, so one tab can be the DM and others can be players.
