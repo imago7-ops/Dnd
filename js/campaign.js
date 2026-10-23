@@ -166,13 +166,78 @@ const Campaign = (() => {
     return next;
   }
 
-  function campaign() {
+  /* ---------- Campaign folders ---------- */
+  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I
+  const emptyCombat = () => ({ round: 1, activeId: null, started: false, combatants: [] });
+
+  /* A party room code no other campaign in this browser is using. */
+  function newRoomCode(existing) {
+    const taken = new Set((existing || Store.state.campaigns || []).map(c => c.roomCode));
+    let code;
+    do {
+      const buf = new Uint32Array(5);
+      crypto.getRandomValues(buf);
+      code = Array.from(buf, x => CODE_CHARS[x % CODE_CHARS.length]).join('');
+    } while (taken.has(code));
+    return code;
+  }
+
+  /* Turn campaign content (new, uploaded or migrated) into a campaign folder. */
+  function adopt(content, existing) {
+    const c = migrate(content);
+    c.id = Util.uid();
+    c.roomCode = newRoomCode(existing);
+    c.combat = emptyCombat();
+    c.feed = [];
+    c.created = c.updated = Date.now();
+    return c;
+  }
+
+  /* Older saves had a single campaign; move it into the folder list once. */
+  function ensure() {
     const s = Store.state;
-    if (!s.campaign || !Array.isArray(s.campaign.sections)) {
-      s.campaign = migrate(s.campaign);
-      Store.save();
+    if (Array.isArray(s.campaigns)) return s.campaigns;
+    const all = [];
+    const old = s.campaign;
+    const hasOld = old && (old.name || (Array.isArray(old.sections) && old.sections.some(x => x.entries.length)) || (Array.isArray(old.cards) && old.cards.length));
+    const hasFight = s.combat && Array.isArray(s.combat.combatants) && s.combat.combatants.length;
+    if (hasOld || hasFight) {
+      const c = adopt(old || blank(), all);
+      if (s.combat && Array.isArray(s.combat.combatants)) c.combat = s.combat;
+      if (s.room && Array.isArray(s.room.feed)) c.feed = s.room.feed;
+      all.push(c);
+      s.activeCampaignId = c.id;
     }
-    return migrate(s.campaign);
+    s.campaigns = all;
+    delete s.campaign; delete s.combat; delete s.room;
+    Store.save();
+    return all;
+  }
+
+  const list = () => ensure();
+  const byId = id => list().find(c => c.id === id) || null;
+  function activeId() {
+    const all = list();
+    return (byId(Store.state.activeCampaignId) && Store.state.activeCampaignId) || (all[0] && all[0].id) || null;
+  }
+  function create(content) {
+    const all = list();
+    const c = adopt(content || blank(), all);
+    all.unshift(c);
+    Store.state.activeCampaignId = c.id;
+    Store.save();
+    return c;
+  }
+  function combatOf(id) {
+    const c = byId(id || activeId());
+    if (!c) return null;
+    if (!c.combat || !Array.isArray(c.combat.combatants)) c.combat = emptyCombat();
+    return c.combat;
+  }
+  /* What goes in a downloaded file: the notes, not the room code or live combat. */
+  function exportable(c) {
+    const { id, roomCode, combat, feed, created, updated, ...content } = c;
+    return content;
   }
 
   const typeOf = sec => TYPES[sec.type] || CUSTOM;
@@ -224,13 +289,14 @@ const Campaign = (() => {
   }
 
   /* ---------- UI ---------- */
-  function mount(el) {
-    const cp = campaign();
+  function mountNotebook(el, cp) {
+    const save = () => { cp.updated = Date.now(); Store.save(); };
     let query = '';
     let show = 'all'; // all | known | hidden
 
     el.innerHTML = `
       <div class="notebook">
+        <a class="back-link" href="#/campaign">All campaigns</a>
         <header class="nb-head">
           <div class="nb-title">
             <input class="campaign-name" data-ref="name" value="${esc(cp.name)}" placeholder="Untitled campaign" aria-label="Campaign name">
@@ -242,7 +308,7 @@ const Campaign = (() => {
             <button class="btn" data-action="expand">Expand all</button>
             <button class="btn" data-action="collapse">Collapse all</button>
             <button class="btn" data-action="export">Download</button>
-            <button class="btn" data-action="import">Upload</button>
+            <a class="room-code-chip" href="#/room" title="Players join this campaign's party room with this code">Room code <b>${esc(cp.roomCode)}</b></a>
           </div>
         </header>
         <div class="nb-sections" data-ref="sections"></div>
@@ -398,7 +464,7 @@ const Campaign = (() => {
       if (show === 'known') e.known = true;
       sec.entries.unshift(e);
       sec.open = true;
-      Store.save();
+      save();
       render();
       el.querySelector(`[data-entry="${e.id}"] [data-field="name"]`)?.focus();
     }
@@ -418,7 +484,7 @@ const Campaign = (() => {
       const t = typeOf(sec);
       if (t.combat === 'single') {
         const name = e.f.name || `Unnamed ${t.one}`;
-        Combat.add({ name, kind: 'enemy', hp: e.f.hp || 10, ac: e.f.ac || 12 });
+        Combat.add({ name, kind: 'enemy', hp: e.f.hp || 10, ac: e.f.ac || 12 }, cp.id);
         return Util.toast(`${name} added to combat.`);
       }
       const lines = String(e.f.creatures || '').split('\n').map(l => l.trim()).filter(Boolean);
@@ -431,7 +497,7 @@ const Campaign = (() => {
           if (/^\d+$/.test(m[1])) { count = Number(m[1]); name = m[2]; } else { name = m[1]; count = Number(m[2]); }
         }
         count = Util.clamp(count, 1, 20);
-        for (let i = 1; i <= count; i++) Combat.add({ name: count > 1 ? `${name} ${i}` : name, kind: 'enemy', hp: 10, ac: 12 });
+        for (let i = 1; i <= count; i++) Combat.add({ name: count > 1 ? `${name} ${i}` : name, kind: 'enemy', hp: 10, ac: 12 }, cp.id);
         total += count;
       });
       Util.toast(`${total} creature${total > 1 ? 's' : ''} added to the combat tracker in the Party room. Set their HP and AC there.`);
@@ -448,11 +514,11 @@ const Campaign = (() => {
       switch (a) {
         case 'toggle-section':
           if (query) return;
-          ctx.sec.open = !ctx.sec.open; Store.save(); return render();
+          ctx.sec.open = !ctx.sec.open; save(); return render();
         case 'add-entry': return addEntry(ctx.sec);
         case 'toggle-known': {
           ctx.entry.known = !ctx.entry.known;
-          Store.save();
+          save();
           render();
           el.querySelector(`[data-entry="${ctx.entry.id}"] .vis-toggle`)?.focus({ preventScroll: true });
           return;
@@ -460,48 +526,40 @@ const Campaign = (() => {
         case 'reveal-all':
         case 'hide-all':
           ctx.sec.entries.forEach(x => { x.known = a === 'reveal-all'; });
-          Store.save();
+          save();
           render();
           return Util.toast(a === 'reveal-all' ? `All ${ctx.sec.label.toLowerCase()} are now known to players.` : `All ${ctx.sec.label.toLowerCase()} are now hidden.`);
         case 'toggle-entry':
-          ctx.entry.open = !ctx.entry.open; Store.save(); render();
+          ctx.entry.open = !ctx.entry.open; save(); render();
           if (ctx.entry.open) el.querySelector(`[data-entry="${ctx.entry.id}"] .entry-body [data-field]`)?.focus({ preventScroll: true });
           return;
         case 'delete-entry': {
           const idx = ctx.sec.entries.indexOf(ctx.entry);
           ctx.sec.entries.splice(idx, 1);
-          Store.save(); render();
+          save(); render();
           const t = typeOf(ctx.sec);
           return showUndo(`Deleted ${ctx.entry.f.name || `unnamed ${t.one}`}.`, () => {
             ctx.sec.entries.splice(Math.min(idx, ctx.sec.entries.length), 0, ctx.entry);
-            Store.save(); if (el.isConnected) render();
+            save(); if (el.isConnected) render();
           });
         }
         case 'delete-section': {
           const idx = cp.sections.indexOf(ctx.sec);
           cp.sections.splice(idx, 1);
-          Store.save(); render();
+          save(); render();
           return showUndo(`Removed the ${ctx.sec.label} section.`, () => {
-            cp.sections.splice(idx, 0, ctx.sec); Store.save(); if (el.isConnected) render();
+            cp.sections.splice(idx, 0, ctx.sec); save(); if (el.isConnected) render();
           });
         }
         case 'roll-weather':
-          rollWeather(ctx.entry.f); Store.save(); render();
+          rollWeather(ctx.entry.f); save(); render();
           return Util.toast(`Rolled: ${ctx.entry.f.conditions}, ${ctx.entry.f.temperature.toLowerCase()}, ${ctx.entry.f.wind.toLowerCase()}.`);
         case 'to-combat': return toCombat(ctx.sec, ctx.entry);
-        case 'expand': cp.sections.forEach(s => { s.open = true; }); Store.save(); return render();
-        case 'collapse': cp.sections.forEach(s => { s.open = false; s.entries.forEach(x => { x.open = false; }); }); Store.save(); return render();
+        case 'expand': cp.sections.forEach(s => { s.open = true; }); save(); return render();
+        case 'collapse': cp.sections.forEach(s => { s.open = false; s.entries.forEach(x => { x.open = false; }); }); save(); return render();
         case 'export':
-          Util.download(`${Util.slug(cp.name || 'campaign')}.json`, cp);
+          Util.download(`${Util.slug(cp.name || 'campaign')}.json`, exportable(cp));
           return Util.toast('Campaign downloaded.');
-        case 'import':
-          return Util.pickJSON().then(data => {
-            if (!data || (!Array.isArray(data.sections) && !Array.isArray(data.cards))) throw new Error('That file doesn\'t look like a Campaign Codex campaign.');
-            Store.state.campaign = migrate(data);
-            Store.save();
-            mount(el);
-            Util.toast(`Uploaded ${data.name || 'campaign'}.`);
-          }).catch(err => Util.toast(err.message, 'error'));
       }
     });
 
@@ -520,11 +578,11 @@ const Campaign = (() => {
           n.classList.toggle('unnamed', !t.value);
         }
         if (ty.summary.includes(t.dataset.field)) row.querySelector('.entry-meta').textContent = summaryOf(ty, entry);
-        Store.save();
+        save();
         return;
       }
-      if (t === ref('name')) { cp.name = t.value; Store.save(); }
-      if (t === ref('pitch')) { cp.pitch = t.value; autoSize(t); Store.save(); }
+      if (t === ref('name')) { cp.name = t.value; save(); }
+      if (t === ref('pitch')) { cp.pitch = t.value; autoSize(t); save(); }
       if (t === ref('search')) { query = t.value.trim().toLowerCase(); render(); }
     });
 
@@ -541,7 +599,7 @@ const Campaign = (() => {
       if (!label) { input.focus(); return; }
       cp.sections.push({ id: Util.uid(), type: 'custom', label, open: true, entries: [] });
       input.value = '';
-      Store.save();
+      save();
       render();
       Util.toast(`Added the ${label} section.`);
     });
@@ -569,8 +627,8 @@ const Campaign = (() => {
     custom: ['details'],
   };
 
-  function publicKnown() {
-    const cp = Store.state.campaign;
+  function publicKnown(id) {
+    const cp = byId(id || activeId());
     if (!cp || !Array.isArray(cp.sections)) return [];
     return cp.sections.map(sec => {
       const t = TYPES[sec.type] || CUSTOM;
@@ -587,5 +645,118 @@ const Campaign = (() => {
     }).filter(sec => sec.entries.length);
   }
 
-  return { mount, publicKnown };
+  /* ---------- Library of campaign folders ---------- */
+  function mountLibrary(el) {
+    const all = list();
+    const fmtDate = t => (t ? new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : '');
+    const hostingId = typeof Room !== 'undefined' && Room.state.mode === 'host' ? Room.state.campaignId : null;
+
+    function folderHTML(c) {
+      const entries = c.sections.reduce((n, sec) => n + sec.entries.length, 0);
+      const known = c.sections.reduce((n, sec) => n + sec.entries.filter(e => e.known).length, 0);
+      const fighting = c.combat && c.combat.combatants.length;
+      return `
+        <article class="folder ${c.id === hostingId ? 'live' : ''}" data-id="${c.id}">
+          <a class="folder-main" href="#/campaign/${c.id}">
+            <span class="folder-name ${c.name ? '' : 'unnamed'}">${esc(c.name || 'Untitled campaign')}</span>
+            <span class="folder-pitch">${esc(c.pitch || 'No summary yet.')}</span>
+            <span class="folder-stats">${entries} entr${entries === 1 ? 'y' : 'ies'}, ${known} known to players${fighting ? `, ${fighting} in combat` : ''}</span>
+            ${c.updated ? `<span class="folder-date">Edited ${fmtDate(c.updated)}</span>` : ''}
+          </a>
+          <div class="folder-foot">
+            <span class="folder-code" title="Players join this campaign's party room with this code">Room <b>${esc(c.roomCode)}</b></span>
+            ${c.id === hostingId ? '<span class="live-badge">Room open</span>' : ''}
+            <span class="folder-tools">
+              <button class="link-btn" data-lib="download">Download</button>
+              <button class="link-btn danger" data-lib="delete">Delete</button>
+            </span>
+          </div>
+        </article>`;
+    }
+
+    el.innerHTML = `
+      <div class="library">
+        <header class="lib-head">
+          <div>
+            <h1>Campaigns</h1>
+            <p class="lede">Each campaign keeps its own notes, combat tracker and party room code.</p>
+          </div>
+          <div class="lib-actions">
+            <button class="btn" data-lib="upload">Upload a campaign</button>
+            <button class="btn btn-primary" data-lib="new">New campaign</button>
+          </div>
+        </header>
+        ${all.length ? `<div class="lib-grid">${all.map(folderHTML).join('')}</div>` : `
+          <div class="empty-state">
+            <p>No campaigns yet.</p>
+            <p class="muted">Start one and fill it with NPCs, places, factions and everything else your world needs.</p>
+            <button class="btn btn-primary" data-lib="new">Create your first campaign</button>
+          </div>`}
+      </div>`;
+
+    el.onclick = e => {
+      const b = e.target.closest('[data-lib]');
+      if (!b) return;
+      const node = b.closest('[data-id]');
+      const c = node && byId(node.dataset.id);
+      switch (b.dataset.lib) {
+        case 'new': {
+          const made = create();
+          location.hash = `#/campaign/${made.id}`;
+          return;
+        }
+        case 'upload':
+          return Util.pickJSON().then(data => {
+            if (!data || (!Array.isArray(data.sections) && !Array.isArray(data.cards))) throw new Error('That file doesn\'t look like a Campaign Codex campaign.');
+            const made = create(data);
+            Util.toast(`Uploaded ${made.name || 'campaign'} with room code ${made.roomCode}.`);
+            mountLibrary(el);
+          }).catch(err => Util.toast(err.message, 'error'));
+        case 'download':
+          Util.download(`${Util.slug(c.name || 'campaign')}.json`, exportable(c));
+          return Util.toast('Campaign downloaded.');
+        case 'delete': {
+          if (c.id === hostingId) return Util.toast('End this campaign\'s party room before deleting it.', 'error');
+          if (!b.dataset.armed) {
+            b.dataset.armed = '1'; b.textContent = 'Click again to delete';
+            setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Delete'; } }, 3000);
+            return;
+          }
+          const arr = list();
+          const idx = arr.indexOf(c);
+          arr.splice(idx, 1);
+          Store.save();
+          mountLibrary(el);
+          const box = document.getElementById('toasts');
+          const t = document.createElement('div');
+          t.className = 'toast';
+          t.innerHTML = `Deleted ${esc(c.name || 'Untitled campaign')}. <button class="link-btn">Undo</button>`;
+          t.querySelector('button').onclick = () => { list().splice(Math.min(idx, list().length), 0, c); Store.save(); if (el.isConnected) mountLibrary(el); t.remove(); };
+          box.appendChild(t);
+          setTimeout(() => t.classList.add('out'), 5600);
+          setTimeout(() => t.remove(), 6000);
+          return;
+        }
+      }
+    };
+  }
+
+  /* #/campaign shows the library; #/campaign/<id> opens one campaign. */
+  function mount(el) {
+    const id = location.hash.replace(/^#\/?/, '').split('/')[1];
+    if (id) {
+      const c = byId(id);
+      if (c) {
+        Store.state.activeCampaignId = c.id;
+        Store.save();
+        mountNotebook(el, c);
+        if (!c.name) el.querySelector('[data-ref="name"]').focus();
+        return;
+      }
+      history.replaceState(null, '', '#/campaign');
+    }
+    mountLibrary(el);
+  }
+
+  return { mount, publicKnown, list, byId, activeId, combat: combatOf, newRoomCode };
 })();

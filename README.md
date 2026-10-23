@@ -5,6 +5,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 ## What's in the MVP
 
 **First visit:** choose whether you're a **Player** or the **Dungeon Master**
+- **Campaigns library:** keep as many campaigns as you like, each in its own folder with its own notes, combat tracker, table-talk history and permanent party room code. Create, open, upload, download or delete campaigns from the Campaigns tab.
 - A campaign notebook with a collapsible section for each part of the campaign: NPCs, Locations, Factions, Bosses, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes. Add your own sections too (Gods, Ships, Rumors…).
 - Each entry is a row you can expand into a form with fields that suit it: NPC attitude and secrets, faction goals and standing, boss CR, HP and legendary actions, abnormality causes and effects, and so on. Names of locations, factions and NPCs are suggested in related fields.
 - Mark any entry **Known** or **Hidden** with the switch on its row. New entries start Hidden. Filter to see only what the players know (or only your secrets), and use Reveal all / Hide all on a section.
@@ -13,7 +14,7 @@ A browser-based D&D 5e table companion. No install, no build step, no account: o
 - Search across the whole campaign, expand or collapse everything, and download/upload the campaign as a `.json` file. Cards from the earlier board layout carry over automatically.
 
 **Party room** (both roles)
-- The DM clicks **Host a party room** and gets a 5-character code. Players open **Party room**, type the code, pick the character they're bringing, and join from their own computers.
+- The DM picks a campaign and clicks **Host this campaign's room**. Every campaign has its own 5-character code that stays the same each session, so rooms for different campaigns never overlap and players only see the hosted campaign. Players open **Party room**, type the code, pick the character they're bringing, and join from their own computers.
 - **DM view:** the combat tracker, an **Add to combat** / **Remove** button on each player in the party list (initiative is rolled for them), "Add everyone to combat", the party list with each character's HP, AC and passive Perception, and the table talk feed.
 - **Player view:** the live turn order (enemy health shows only as Healthy / Bloodied / Down), a Roll initiative button, "What the party knows" (the DM's entries marked Known, without secret fields), the party list and table talk.
 - **Table talk:** chat plus shared dice rolls. Players share rolls by default; the DM's rolls stay private unless they tick "Share my rolls".
@@ -42,7 +43,7 @@ js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasse
 js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet
-js/campaign.js     DM campaign notebook
+js/campaign.js     DM campaigns library and notebook
 js/room.js         party room connections (host, join, sync)
 js/party.js        party room page
 js/combat.js       combat tracker (shown inside the party room)

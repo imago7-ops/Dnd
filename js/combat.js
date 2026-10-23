@@ -5,14 +5,18 @@ const Combat = (() => {
   const CONDITIONS = ['Blinded', 'Charmed', 'Concentrating', 'Deafened', 'Exhaustion', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious'];
   const KINDS = { pc: 'Player', enemy: 'Enemy', ally: 'Ally' };
 
-  const st = () => Store.state.combat;
+  // Each campaign has its own fight. The tracker on screen works on `targetId`.
+  let targetId = null;
+  const scratch = { round: 1, activeId: null, started: false, combatants: [] };
+  const st = (id = targetId) => Campaign.combat(id) || scratch;
 
-  function sortOrder() {
-    st().combatants.sort((a, b) => (b.init - a.init) || (b.initBonus - a.initBonus) || a.name.localeCompare(b.name));
+  function sortOrder(id) {
+    st(id).combatants.sort((a, b) => (b.init - a.init) || (b.initBonus - a.initBonus) || a.name.localeCompare(b.name));
   }
 
   /* Add from anywhere (sheet, campaign notebook). */
-  function add(c) {
+  function add(c, campaignId) {
+    const fight = st(campaignId || targetId);
     const cb = {
       id: Util.uid(),
       name: c.name || 'Unnamed',
@@ -24,16 +28,17 @@ const Combat = (() => {
       ac: Util.num(c.ac, 10),
       conditions: [],
     };
-    st().combatants.push(cb);
-    if (st().started) {
+    fight.combatants.push(cb);
+    if (fight.started) {
       // Keep whoever is acting now as the active creature after re-sorting.
-      sortOrder();
+      sortOrder(campaignId || targetId);
     }
     Store.save();
     return cb;
   }
 
   function mount(el, opts = {}) {
+    targetId = opts.campaignId || null;
     const isPlayer = Store.state.role === 'player' && !opts.embedded;
     const me = isPlayer ? Character.active() : null;
 

@@ -14,7 +14,6 @@
 const Room = (() => {
   const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
   const PREFIX = 'campaign-codex-room-';
-  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O or 1/I
   const CODE_LEN = 5;
   const FEED_MAX = 150;
   const SESSION_KEY = 'campaign-codex.room';
@@ -24,6 +23,8 @@ const Room = (() => {
     mode: null,        // 'host' | 'guest' | null
     status: 'idle',    // idle | connecting | open | reconnecting | ended | error
     error: '',
+    errorCode: '',
+    campaignId: null,  // host: which campaign this room belongs to
     code: '',
     view: null,        // guest: last snapshot from the DM
     shareRolls: true,
@@ -38,23 +39,23 @@ const Room = (() => {
   /* ---------- Small helpers ---------- */
   const emit = () => listeners.forEach(fn => fn());
   const clip = (v, n) => String(v ?? '').slice(0, n);
-  function newCode() {
-    const buf = new Uint32Array(CODE_LEN);
-    crypto.getRandomValues(buf);
-    return Array.from(buf, x => CODE_CHARS[x % CODE_CHARS.length]).join('');
-  }
   const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LEN);
 
   function saveSession() {
     try {
       if (!s.mode) sessionStorage.removeItem(SESSION_KEY);
-      else sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode: s.mode, code: s.code, me, shareRolls: s.shareRolls }));
+      else sessionStorage.setItem(SESSION_KEY, JSON.stringify({ mode: s.mode, code: s.code, me, shareRolls: s.shareRolls, campaignId: s.campaignId }));
     } catch { /* storage unavailable */ }
   }
 
-  function roomData() {
-    return (Store.state.room ||= { feed: [] });
+  /* The hosted campaign's table-talk history. */
+  function feedList() {
+    const c = typeof Campaign !== 'undefined' && s.campaignId ? Campaign.byId(s.campaignId) : null;
+    if (!c) return [];
+    if (!Array.isArray(c.feed)) c.feed = [];
+    return c.feed;
   }
+  const fight = () => Campaign.combat(s.campaignId) || { round: 1, activeId: null, started: false, combatants: [] };
 
   /* ---------- Transports ---------- */
   function loadPeerJS() {
@@ -169,7 +170,7 @@ const Room = (() => {
 
   const ERRORS = {
     'no-room': "No room is open with that code. Check the code with your DM, and make sure their Party room page is open.",
-    taken: 'That room code is busy. Try hosting again.',
+    taken: "Another room is using this campaign's code right now. Wait a minute and try again, or give this campaign a new code.",
     lib: "Couldn't load the connection library. Check your internet connection and try again.",
     timeout: "Couldn't reach the room. Check the code and your internet connection, then try again.",
     'browser-incompatible': "This browser can't make direct connections. Try a recent Chrome, Edge, Firefox or Safari.",
@@ -210,14 +211,14 @@ const Room = (() => {
 
   /* ---------- Host ---------- */
   function feedPush(item) {
-    const feed = roomData().feed;
+    const feed = feedList();
     feed.push({ id: Util.uid(), time: Date.now(), ...item });
     if (feed.length > FEED_MAX) feed.splice(0, feed.length - FEED_MAX);
     Store.save();
   }
 
   function publicCombat() {
-    const c = Store.state.combat;
+    const c = fight();
     return {
       started: c.started, round: c.round,
       list: c.combatants.map(x => {
@@ -232,15 +233,15 @@ const Room = (() => {
   }
 
   function snapshot(forId) {
-    const cp = Store.state.campaign;
+    const cp = Campaign.byId(s.campaignId);
     return {
       code: s.code,
       campaign: clip(cp && cp.name, 80),
       you: forId || null,
       players: [...players.values()].map(p => ({ id: p.id, name: p.name, character: p.character })),
-      feed: roomData().feed.slice(-100),
+      feed: feedList().slice(-100),
       combat: publicCombat(),
-      known: typeof Campaign !== 'undefined' ? Campaign.publicKnown() : [],
+      known: Campaign.publicKnown(s.campaignId),
     };
   }
 
@@ -261,7 +262,7 @@ const Room = (() => {
   }
 
   function linkedCombatant(playerId) {
-    return Store.state.combat.combatants.find(x => x.playerId === playerId);
+    return fight().combatants.find(x => x.playerId === playerId);
   }
 
   function addPlayerToCombat(p, initTotal) {
@@ -269,13 +270,13 @@ const Room = (() => {
     const existing = linkedCombatant(p.id);
     if (existing) {
       existing.init = initTotal;
-      if (Store.state.combat.started) Combat.sortOrder();
+      if (fight().started) Combat.sortOrder(s.campaignId);
       return existing;
     }
     // Players who joined without a sheet still get a row; the DM can fill in HP and AC.
     const cb = ch
-      ? Combat.add({ name: ch.name, kind: 'pc', initBonus: ch.initBonus, init: initTotal, hp: ch.hp.current, maxHp: ch.hp.max, ac: ch.ac })
-      : Combat.add({ name: p.name, kind: 'pc', initBonus: 0, init: initTotal, hp: 0, maxHp: 0, ac: 10 });
+      ? Combat.add({ name: ch.name, kind: 'pc', initBonus: ch.initBonus, init: initTotal, hp: ch.hp.current, maxHp: ch.hp.max, ac: ch.ac }, s.campaignId)
+      : Combat.add({ name: p.name, kind: 'pc', initBonus: 0, init: initTotal, hp: 0, maxHp: 0, ac: 10 }, s.campaignId);
     cb.playerId = p.id;
     return cb;
   }
@@ -296,7 +297,7 @@ const Room = (() => {
 
   /* DM: take a player back out of combat. */
   function removePlayer(id) {
-    const c = Store.state.combat;
+    const c = fight();
     const cb = linkedCombatant(id);
     if (s.mode !== 'host' || !cb) return;
     if (c.activeId === cb.id) {
@@ -349,7 +350,7 @@ const Room = (() => {
   }
 
   function startHosting(code, isResume) {
-    s.mode = 'host'; s.status = 'connecting'; s.error = ''; s.code = code; s.shareRolls = isResume ? s.shareRolls : false;
+    s.mode = 'host'; s.status = 'connecting'; s.error = ''; s.errorCode = ''; s.code = code; s.shareRolls = isResume ? s.shareRolls : false;
     saveSession();
     emit();
     transport().host(code, {
@@ -375,17 +376,17 @@ const Room = (() => {
       },
       error(code2) {
         if (s.mode !== 'host') return;
-        // After a page reload the old room may still be registered for a few seconds.
-        if (code2 === 'taken' && isResume && attempts < 12) {
+        // Each campaign keeps its code. Right after a reload (or closing a tab) the old room can
+        // stay registered for a little while, so wait for it to free up before giving up.
+        if (code2 === 'taken' && attempts < (isResume ? 12 : 8)) {
           attempts++;
           s.status = 'reconnecting';
           emit();
-          retryTimer = setTimeout(() => { net && net.close(); startHosting(code, true); }, 2500);
+          retryTimer = setTimeout(() => { net && net.close(); startHosting(code, isResume); }, 2500);
           return;
         }
-        if (code2 === 'taken' && !isResume) { net && net.close(); return startHosting(newCode(), false); }
         if (s.status === 'open' && code2 !== 'network') return; // a single player's problem
-        s.status = 'error'; s.error = errText(code2);
+        s.status = 'error'; s.error = errText(code2); s.errorCode = code2;
         emit();
       },
     }).then(h => { net = h; }).catch(e => { s.status = 'error'; s.error = errText(e.message === 'lib' ? 'lib' : 'network'); emit(); });
@@ -451,12 +452,25 @@ const Room = (() => {
   }
 
   /* ---------- Public API ---------- */
-  function host() {
+  /* DM: open the party room for one campaign, using that campaign's own code. */
+  function host(campaignId) {
+    const c = Campaign.byId(campaignId);
+    if (!c) return;
     clearTimeout(retryTimer);
     if (net) net.close();
     players.clear();
     attempts = 0;
-    startHosting(newCode(), false);
+    s.campaignId = c.id;
+    startHosting(c.roomCode, false);
+  }
+
+  /* DM: give the hosted campaign a fresh code (e.g. if someone else is using it). */
+  function newCodeForCampaign() {
+    const c = Campaign.byId(s.campaignId);
+    if (!c) return;
+    c.roomCode = Campaign.newRoomCode();
+    Store.save();
+    host(c.id);
   }
 
   function join(code, name, charId) {
@@ -480,7 +494,7 @@ const Room = (() => {
     const handle = net;
     setTimeout(() => handle && handle.close(), 150);
     net = null; hostConn = null; players.clear();
-    s.mode = null; s.status = 'idle'; s.code = ''; s.view = null; s.error = '';
+    s.mode = null; s.status = 'idle'; s.code = ''; s.view = null; s.error = ''; s.errorCode = ''; s.campaignId = null;
     saveSession();
     emit();
   }
@@ -547,7 +561,10 @@ const Room = (() => {
     try { saved = JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { /* ignore */ }
     if (!saved || !saved.code) return;
     s.shareRolls = saved.shareRolls !== false;
-    if (saved.mode === 'host' && Store.state.role === 'dm') startHosting(saved.code, true);
+    if (saved.mode === 'host' && Store.state.role === 'dm') {
+      const c = Campaign.byId(saved.campaignId);
+      if (c) { s.campaignId = c.id; startHosting(c.roomCode, true); }
+    }
     if (saved.mode === 'guest' && Store.state.role === 'player' && saved.me) { me = saved.me; startJoining(saved.code, true); }
   }
 
@@ -555,10 +572,10 @@ const Room = (() => {
     get state() { return s; },
     get players() { return [...players.values()].map(p => ({ id: p.id, name: p.name, character: p.character, inCombat: Boolean(linkedCombatant(p.id)) })); },
     get me() { return me; },
-    feed: () => roomData().feed,
+    feed: () => feedList(),
     snapshot,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
-    host, join, leave, chat, rollInitiative, addPartyToCombat, addPlayer, removePlayer, setShareRolls, resume, cleanCode,
+    host, newCodeForCampaign, join, leave, chat, rollInitiative, addPartyToCombat, addPlayer, removePlayer, setShareRolls, resume, cleanCode,
     CODE_LEN,
   };
 })();

@@ -4,7 +4,7 @@
 const App = (() => {
   const PAGES = {
     player: [['character', 'Character'], ['room', 'Party room']],
-    dm: [['campaign', 'Campaign'], ['room', 'Party room']],
+    dm: [['campaign', 'Campaigns'], ['room', 'Party room']],
   };
   const MODULES = { character: Character, campaign: Campaign, room: Party };
   const ROLE_NAME = { player: 'Player', dm: 'Dungeon Master' };

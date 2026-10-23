@@ -110,21 +110,46 @@ const Party = (() => {
       const st = Room.state;
       if (isDM) {
         if (!st.mode) {
-          el.innerHTML = `
+          const camps = Campaign.list();
+          const pick = Campaign.activeId();
+          el.innerHTML = camps.length ? `
             <div class="room-intro">
               <h1>Party room</h1>
-              <p class="lede">Host a room and give your players the code. They join from their own computers and see the turn order, what they've discovered, the party's rolls and the chat. The combat tracker lives here too.</p>
-              <button class="btn btn-primary btn-lg" data-act="host">Host a party room</button>
+              <p class="lede">Host a room for one of your campaigns and give your players its code. They join from their own computers and see the turn order, what they've discovered, the party's rolls and the chat. The combat tracker lives here too.</p>
+              <form class="join-form panel" data-ref="hostForm">
+                <label class="field"><span>Campaign</span>
+                  <select data-ref="hostCampaign">
+                    ${camps.map(c => `<option value="${c.id}" ${c.id === pick ? 'selected' : ''}>${esc(c.name || 'Untitled campaign')}</option>`).join('')}
+                  </select>
+                </label>
+                <p class="host-code">Players join with code <b data-ref="hostCode"></b>. It stays the same for this campaign every session.</p>
+                <button class="btn btn-primary btn-lg" type="submit">Host this campaign's room</button>
+              </form>
               <p class="muted small">Your browser runs the room, so keep this tab open while you play. You can host just for yourself to use the combat tracker.</p>
+            </div>` : `
+            <div class="room-intro">
+              <h1>Party room</h1>
+              <p class="lede">Each party room belongs to a campaign, with its own code, combat tracker and chat. Create a campaign first.</p>
+              <a class="btn btn-primary btn-lg" href="#/campaign">Go to Campaigns</a>
             </div>`;
+          const sel = el.querySelector('[data-ref="hostCampaign"]');
+          if (sel) {
+            const showCode = () => { el.querySelector('[data-ref="hostCode"]').textContent = Campaign.byId(sel.value).roomCode; };
+            sel.addEventListener('change', showCode);
+            showCode();
+            el.querySelector('[data-ref="hostForm"]').addEventListener('submit', e => { e.preventDefault(); Room.host(sel.value); });
+          }
           return;
         }
+        const hosted = Campaign.byId(st.campaignId);
         el.innerHTML = `
           <div class="room">
             <header class="room-head">
               <div>
                 <h1>Party room</h1>
+                <p class="room-campaign">${esc(hosted ? hosted.name || 'Untitled campaign' : '')}</p>
                 <p class="lede" data-ref="status"></p>
+                <button class="btn" data-act="new-code" hidden>Give this campaign a new code</button>
               </div>
               <div class="room-code-box">
                 <span class="room-code-label">Room code</span>
@@ -154,12 +179,12 @@ const Party = (() => {
                 <section class="panel room-card">
                   <h2>Shared with players</h2>
                   <p class="muted small" data-ref="knownCount"></p>
-                  <a class="link-btn" href="#/campaign">Choose what they know on the Campaign page</a>
+                  <a class="link-btn" href="#/campaign/${hosted ? hosted.id : ''}">Choose what they know in this campaign</a>
                 </section>
               </aside>
             </div>
           </div>`;
-        Combat.mount(el.querySelector('[data-ref="tracker"]'), { embedded: true });
+        Combat.mount(el.querySelector('[data-ref="tracker"]'), { embedded: true, campaignId: st.campaignId });
         wireChat();
         return;
       }
@@ -287,7 +312,7 @@ const Party = (() => {
       setText('code', st.code);
       const statusText = {
         connecting: isDM ? 'Opening the room…' : 'Connecting…',
-        reconnecting: isDM ? 'Reopening the room after a reload…' : 'Connection lost. Reconnecting…',
+        reconnecting: isDM ? 'Waiting for the room code to become free… (this can take a minute after a reload)' : 'Connection lost. Reconnecting…',
         open: '',
         error: st.error,
       }[st.status] || '';
@@ -299,12 +324,14 @@ const Party = (() => {
         setHTML('party', partyHTML(ps, null, true));
         const addAll = el.querySelector('[data-act="add-party"]');
         if (addAll) addAll.disabled = !ps.some(p => !p.inCombat);
-        const known = Campaign.publicKnown().reduce((n, sec) => n + sec.entries.length, 0);
+        const known = Campaign.publicKnown(st.campaignId).reduce((n, sec) => n + sec.entries.length, 0);
         setText('knownCount', known ? `Players can see ${known} known entr${known > 1 ? 'ies' : 'y'} from your campaign.` : 'Nothing from your campaign is marked Known yet.');
         const before = el.querySelector('[data-ref="feed"]')?.innerHTML;
         setHTML('feed', feedHTML(Room.feed().slice(-100), 'DM'));
         if (el.querySelector('[data-ref="feed"]')?.innerHTML !== before) scrollFeed();
         el.querySelector('.room')?.classList.toggle('is-error', st.status === 'error');
+        const nc = el.querySelector('[data-act="new-code"]');
+        if (nc) nc.hidden = st.errorCode !== 'taken';
         return;
       }
 
@@ -325,7 +352,7 @@ const Party = (() => {
       const b = e.target.closest('button');
       if (!b || b.disabled) return;
       switch (b.dataset.act) {
-        case 'host': return Room.host();
+        case 'new-code': return Room.newCodeForCampaign();
         case 'copy':
           navigator.clipboard?.writeText(Room.state.code).then(() => Util.toast('Room code copied.'), () => Util.toast(`Room code: ${Room.state.code}`));
           return;
