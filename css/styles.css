@@ -1116,7 +1116,8 @@ a.btn-primary { color: var(--accent-ink); }
   /* DM: campaigns */
   .library, .notebook { padding: 16px 14px 24px; }
   .lib-head { flex-direction: column; align-items: stretch; }
-  .lib-actions .btn { flex: 1; }
+  .lib-actions { flex-wrap: wrap; }
+  .lib-actions .btn { flex: 1 1 auto; }
   .lib-grid { grid-template-columns: 1fr; }
   .campaign-name { font-size: 1.7rem; }
   .nb-tools { gap: 6px; }
@@ -1169,3 +1170,23 @@ a.btn-primary { color: var(--accent-ink); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- New campaign chooser ---------- */
+.folder-source { align-self: flex-start; font-size: .78rem; color: var(--accent-hi); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; }
+.new-camp-modal { width: min(760px, 100%); }
+.nc-choices { display: grid; gap: 10px; padding: 16px 0; }
+.nc-choice, .nc-premade {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%;
+  padding: 14px 16px; background: var(--bg); color: inherit; font: inherit;
+  border: 1px solid var(--line); border-radius: var(--r-sm); cursor: pointer;
+}
+.nc-choice:hover, .nc-premade:hover, .nc-choice:focus-visible, .nc-premade:focus-visible { border-color: var(--accent); outline: none; }
+.nc-choice b, .nc-name { font-family: var(--serif); font-weight: 800; font-size: 1.25rem; }
+.nc-choice span, .nc-pitch { color: var(--muted); font-size: .94rem; }
+.nc-premades { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; padding: 16px 0; }
+.nc-premade.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.nc-meta { color: var(--accent-hi); font-size: .84rem; }
+.nc-count { color: var(--faint); font-size: .84rem; margin-top: auto; }
+.nc-book { display: flex; flex-direction: column; gap: 12px; padding: 16px 0; }
+.nc-book select, .nc-book input { width: 100%; }
+@media (max-width: 860px) { .nc-premades { grid-template-columns: 1fr; } }

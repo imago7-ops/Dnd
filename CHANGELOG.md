@@ -7,6 +7,7 @@ AI drafting requests (who asked the AI for what, and when) are tracked separatel
 
 | When | Version | Who | What changed |
 |---|---|---|---|
+| 2026-10-24 10:45 | 1.13 | Requested by imago7-ops, built by Claude | **New campaign** now asks: create your own, use a premade campaign (four original ready-to-run adventures for levels 1 to 8), or start from an official book you own. Encounter creatures added to combat use the campaign's monster HP and AC. Fixed the Campaigns page being too wide on phones. |
 | 2026-10-24 10:04 | 1.12.1 | imago7-ops | Connected the site to the AWS AI helper (address added to `js/ai-config.js`). |
 | 2026-10-23 12:00 | 1.12 | Requested by imago7-ops, built by Claude (AI assistant) | Moved the AI helper to **AWS** (one-click CloudFormation template). Each person gets their own AI access code. New **AI activity** log on the DM's Campaigns page (when, who, what, which AI, cost) with CSV download. Daily per-person AI limit. Settings file for hosting the website on **AWS Amplify**. Added this changelog. |
 | 2026-10-23 11:27 | 1.11 | Requested by imago7-ops, built by Claude | AI drafting for DMs with Claude or ChatGPT: "Draft with AI" on every campaign section and "Fill in the blanks with AI" on entries. New **Monsters and enemies** section. |

@@ -19,6 +19,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install, no build step, 
 
 ### Dungeon Master
 - **Campaigns library:** as many campaigns as you like, each a folder with its own notes, combat tracker, table-talk history and permanent party room code.
+- **Premade campaigns:** start a new campaign from scratch, from one of four original ready-to-run adventures (village mystery, dungeon crawl, city intrigue, wilderness expedition; levels 1 to 8), or as an empty notebook named after an official adventure you own. Encounters add their creatures to combat with the right HP and AC.
 - **Campaign notebook:** collapsible sections for NPCs, Locations, Factions, Bosses, Monsters and enemies, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes, plus your own sections. Each entry expands into a form with fields that suit it.
 - **Known / Hidden** switch on every entry (new entries start Hidden), with a filter and Reveal all / Hide all per section.
 - Weather entries can roll random conditions for the season. NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
@@ -56,6 +57,7 @@ js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasse
 js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet (folders)
+js/premades.js     Starter campaigns and the official adventure list
 js/campaign.js     DM campaigns library and notebook
 js/ai.js           AI drafting dialog (talks to the AI helper)
 js/ai-config.js    address of the AI helper

@@ -241,6 +241,124 @@ const Campaign = (() => {
     Store.save();
     return c;
   }
+  /* Campaign content from a premade starter campaign. */
+  function fromPremade(p) {
+    const c = blank();
+    c.name = p.name;
+    c.pitch = p.pitch;
+    c.source = `Premade: ${p.name} (levels ${p.levels})`;
+    c.sections.forEach(sec => {
+      const t = TYPES[sec.type];
+      sec.entries = (p.sections[sec.type] || []).map(({ known, ...fields }) => {
+        const f = {};
+        t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
+        Object.entries(fields).forEach(([k, v]) => { f[k] = typeof v === 'number' ? String(v) : v; });
+        return { id: Util.uid(), open: false, known: Boolean(known), f };
+      });
+      sec.open = sec.type === 'sessions' || sec.type === 'locations';
+    });
+    // Put the "Running this campaign" notes first so the DM sees them straight away.
+    const ses = c.sections.findIndex(s => s.type === 'sessions');
+    if (ses > 0) c.sections.unshift(...c.sections.splice(ses, 1));
+    return c;
+  }
+
+  /* An empty campaign for an official adventure the DM owns. */
+  function fromBook(title) {
+    const c = blank();
+    c.name = title;
+    c.pitch = `Running ${title}. Fill in the sections from your copy of the book.`;
+    c.source = `Official book: ${title}`;
+    return c;
+  }
+
+  /* "New campaign" chooser: blank, premade or from a book. done(content) */
+  function openChooser(done) {
+    const host = document.createElement('div');
+    host.className = 'modal-backdrop';
+    host.innerHTML = `<div class="modal new-camp-modal" role="dialog" aria-modal="true" aria-labelledby="nc-title"><div data-ref="body"></div></div>`;
+    document.body.appendChild(host);
+    const body = host.querySelector('[data-ref="body"]');
+    const lastFocus = document.activeElement;
+    let tab = 'start';
+    let pick = null;
+    const close = () => { document.removeEventListener('keydown', onKey); host.remove(); if (lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll: true }); };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+
+    const head = (title, sub) => `
+      <header class="modal-head">
+        <div><h2 id="nc-title">${esc(title)}</h2><p class="muted">${sub}</p></div>
+        <button class="icon-btn" data-act="close" aria-label="Close">×</button>
+      </header>`;
+
+    function render() {
+      if (tab === 'start') {
+        body.innerHTML = `${head('New campaign', 'Start from scratch, or begin with a campaign that is ready to run.')}
+          <div class="modal-body"><div class="nc-choices">
+            <button class="nc-choice" data-act="blank"><b>Create my own</b><span>An empty campaign notebook for your own world.</span></button>
+            <button class="nc-choice" data-act="premades"><b>Use a premade campaign</b><span>${Premades.list.length} ready-to-run adventures with NPCs, places, monsters, encounters and a session plan. Everything stays editable.</span></button>
+            <button class="nc-choice" data-act="book"><b>From an official book</b><span>Running a published adventure you own? Get a campaign set up for it and fill it in from your book.</span></button>
+          </div></div>`;
+      } else if (tab === 'premades') {
+        body.innerHTML = `${head('Premade campaigns', 'Original adventures written for this site. Everything starts Hidden except what the players would know at the start.')}
+          <div class="modal-body"><div class="nc-premades">
+            ${Premades.list.map(p => {
+              const n = Object.values(p.sections).reduce((a, x) => a + x.length, 0);
+              return `<button class="nc-premade ${pick === p.key ? 'on' : ''}" data-act="pick" data-key="${p.key}" aria-pressed="${pick === p.key}">
+                <span class="nc-name">${esc(p.name)}</span>
+                <span class="nc-meta">Levels ${esc(p.levels)} · ${esc(p.sessions)} · ${esc(p.tone)}</span>
+                <span class="nc-pitch">${esc(p.pitch)}</span>
+                <span class="nc-count">${n} entries ready to use</span>
+              </button>`;
+            }).join('')}
+          </div></div>
+          <footer class="modal-foot"><button class="btn" data-act="back">Back</button><span class="foot-hint"></span>
+            <button class="btn btn-primary" data-act="use" ${pick ? '' : 'disabled'}>Use this campaign</button></footer>`;
+      } else {
+        body.innerHTML = `${head('From an official book', 'The adventure\'s contents belong to its publisher, so this site doesn\'t include them. You\'ll get an empty campaign named after the book to fill in from your own copy.')}
+          <div class="modal-body"><form class="nc-book" data-ref="bookForm" autocomplete="off">
+            <label class="field"><span>Adventure</span>
+              <select data-ref="book">${Premades.books.map(b => `<option>${esc(b)}</option>`).join('')}<option value="">Another book…</option></select></label>
+            <label class="field" data-ref="otherWrap" hidden><span>Book title</span><input data-ref="other" placeholder="Title of the adventure"></label>
+            <p class="muted small">Don't have it yet? Official adventures are sold at <a href="https://www.dndbeyond.com/marketplace" target="_blank" rel="noopener">D&amp;D Beyond</a> and game stores. Campaign Codex is a fan project, not affiliated with Wizards of the Coast.</p>
+          </form></div>
+          <footer class="modal-foot"><button class="btn" data-act="back">Back</button><span class="foot-hint"></span>
+            <button class="btn btn-primary" data-act="use-book">Create campaign</button></footer>`;
+        const sel = body.querySelector('[data-ref="book"]');
+        sel.onchange = () => { body.querySelector('[data-ref="otherWrap"]').hidden = sel.value !== ''; if (sel.value === '') body.querySelector('[data-ref="other"]').focus(); };
+      }
+      body.querySelector('.nc-choice, .nc-premade, select')?.focus({ preventScroll: true });
+    }
+
+    host.addEventListener('click', e => {
+      if (e.target === host) return close();
+      const b = e.target.closest('[data-act]');
+      if (!b || b.disabled) return;
+      switch (b.dataset.act) {
+        case 'close': return close();
+        case 'blank': close(); return done(null);
+        case 'premades': tab = 'premades'; return render();
+        case 'book': tab = 'book'; return render();
+        case 'back': tab = 'start'; return render();
+        case 'pick':
+          pick = b.dataset.key;
+          body.querySelectorAll('.nc-premade').forEach(x => { const on = x.dataset.key === pick; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+          body.querySelector('[data-act="use"]').disabled = false;
+          return;
+        case 'use': { const p = Premades.byKey(pick); if (!p) return; close(); return done(fromPremade(p)); }
+        case 'use-book': {
+          const sel = body.querySelector('[data-ref="book"]').value;
+          const title = (sel || body.querySelector('[data-ref="other"]').value).trim();
+          if (!title) return Util.toast('Type the book\'s title first.', 'error');
+          close(); return done(fromBook(title));
+        }
+      }
+    });
+    body.addEventListener('dblclick', e => { const b = e.target.closest('.nc-premade'); if (b) { pick = b.dataset.key; body.querySelector('[data-act="use"]').click(); } });
+    render();
+  }
+
   function combatOf(id) {
     const c = byId(id || activeId());
     if (!c) return null;
@@ -590,6 +708,17 @@ const Campaign = (() => {
       setTimeout(() => node.remove(), 5000);
     }
 
+    /* HP and AC for a creature named in an encounter, from a matching monster, boss or NPC entry. */
+    function statsFor(name) {
+      const key = name.trim().toLowerCase();
+      for (const s of cp.sections) {
+        if (!['monsters', 'bosses', 'npcs'].includes(s.type)) continue;
+        const m = s.entries.find(x => String(x.f.name || '').trim().toLowerCase() === key);
+        if (m) return { hp: Number(m.f.hp) || 10, ac: Number(m.f.ac) || 12, found: true };
+      }
+      return { hp: 10, ac: 12 };
+    }
+
     function toCombat(sec, e) {
       const t = typeOf(sec);
       if (t.combat === 'single') {
@@ -599,7 +728,7 @@ const Campaign = (() => {
       }
       const lines = String(e.f.creatures || '').split('\n').map(l => l.trim()).filter(Boolean);
       if (!lines.length) return Util.toast('List the creatures first, one per line, like "3 Goblin".', 'error');
-      let total = 0;
+      let total = 0, guessed = 0;
       lines.forEach(line => {
         let m = /^(\d+)\s*[x×]?\s+(.+)$/i.exec(line) || /^(.+?)\s*[x×]\s*(\d+)$/i.exec(line);
         let count = 1, name = line;
@@ -607,10 +736,12 @@ const Campaign = (() => {
           if (/^\d+$/.test(m[1])) { count = Number(m[1]); name = m[2]; } else { name = m[1]; count = Number(m[2]); }
         }
         count = Util.clamp(count, 1, 20);
-        for (let i = 1; i <= count; i++) Combat.add({ name: count > 1 ? `${name} ${i}` : name, kind: 'enemy', hp: 10, ac: 12 }, cp.id);
+        const stats = statsFor(name);
+        if (!stats.found) guessed += count;
+        for (let i = 1; i <= count; i++) Combat.add({ name: count > 1 ? `${name} ${i}` : name, kind: 'enemy', hp: stats.hp, ac: stats.ac }, cp.id);
         total += count;
       });
-      Util.toast(`${total} creature${total > 1 ? 's' : ''} added to the combat tracker in the Party room. Set their HP and AC there.`);
+      Util.toast(`${total} creature${total > 1 ? 's' : ''} added to the combat tracker in the Party room.${guessed ? ' Set HP and AC there for any not listed in this campaign\'s monsters.' : ''}`);
     }
 
     /* ---------- Events ---------- */
@@ -774,6 +905,7 @@ const Campaign = (() => {
           <a class="folder-main" href="#/campaign/${c.id}">
             <span class="folder-name ${c.name ? '' : 'unnamed'}">${esc(c.name || 'Untitled campaign')}</span>
             <span class="folder-pitch">${esc(c.pitch || 'No summary yet.')}</span>
+            ${c.source ? `<span class="folder-source">${esc(c.source.split(':')[0])}</span>` : ''}
             <span class="folder-stats">${entries} entr${entries === 1 ? 'y' : 'ies'}, ${known} known to players${fighting ? `, ${fighting} in combat` : ''}</span>
             ${c.updated ? `<span class="folder-date">Edited ${fmtDate(c.updated)}</span>` : ''}
           </a>
@@ -815,11 +947,12 @@ const Campaign = (() => {
       const node = b.closest('[data-id]');
       const c = node && byId(node.dataset.id);
       switch (b.dataset.lib) {
-        case 'new': {
-          const made = create();
-          location.hash = `#/campaign/${made.id}`;
-          return;
-        }
+        case 'new':
+          return openChooser(content => {
+            const made = create(content);
+            if (content && content.source) Util.toast(`${made.name} is ready. Room code ${made.roomCode}.`);
+            location.hash = `#/campaign/${made.id}`;
+          });
         case 'upload':
           return Util.pickJSON().then(data => {
             if (!data || (!Array.isArray(data.sections) && !Array.isArray(data.cards))) throw new Error('That file doesn\'t look like a Campaign Codex campaign.');
