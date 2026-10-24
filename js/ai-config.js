@@ -4,4 +4,4 @@
  * 'https://abc123xyz.lambda-url.us-east-1.on.aws/'.
  * Leave it empty to keep the AI buttons in "not connected yet" mode.
  */
-window.CODEX_AI_ENDPOINT = '';
+window.CODEX_AI_ENDPOINT = 'https://2teoz3x3n7qayuahr6aimybdte0rpryy.lambda-url.us-east-2.on.aws/';
