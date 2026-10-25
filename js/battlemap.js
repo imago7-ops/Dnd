@@ -395,7 +395,9 @@ const Battlemap = (() => {
     const r0 = Math.max(0, Math.floor(-cam.y / s)), r1 = Math.min(rows - 1, Math.floor((H - cam.y) / s));
     const px = 1 / s;
 
-    ctx.fillStyle = '#1a1e2a';
+    // The DM builds on a plain white sheet so every square is easy to see.
+    const white = v.isDM;
+    ctx.fillStyle = white ? '#ffffff' : '#1a1e2a';
     ctx.fillRect(0, 0, cols, rows);
 
     // Picture
@@ -442,7 +444,7 @@ const Battlemap = (() => {
       }
     }
     // Difficult terrain: amber hatching
-    ctx.strokeStyle = 'rgba(227,182,84,.6)';
+    ctx.strokeStyle = white && !v.image ? 'rgba(176,112,0,.9)' : 'rgba(227,182,84,.6)';
     ctx.lineWidth = Math.max(px * 1.2, 0.04);
     ctx.beginPath();
     for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
@@ -456,7 +458,7 @@ const Battlemap = (() => {
 
     // Grid
     if (v.grid && s >= 6) {
-      ctx.strokeStyle = v.image ? 'rgba(0,0,0,.35)' : 'rgba(235,229,214,.10)';
+      ctx.strokeStyle = v.image ? 'rgba(0,0,0,.35)' : white ? 'rgba(21,24,35,.28)' : 'rgba(235,229,214,.10)';
       ctx.lineWidth = px;
       ctx.beginPath();
       for (let x = c0; x <= c1 + 1; x++) { ctx.moveTo(x, r0); ctx.lineTo(x, r1 + 1); }
@@ -475,11 +477,11 @@ const Battlemap = (() => {
     if (v.vis) {
       for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
         if (v.vis[y * cols + x] === '1') continue;
-        ctx.fillStyle = v.isDM ? 'rgba(6,7,12,.55)' : '#06070b';
+        ctx.fillStyle = v.isDM ? (v.image ? 'rgba(6,7,12,.55)' : 'rgba(70,100,170,.12)') : '#06070b';
         ctx.fillRect(x - px * 0.5, y - px * 0.5, 1 + px, 1 + px);
       }
       if (v.isDM) {
-        ctx.strokeStyle = 'rgba(126,166,232,.16)';
+        ctx.strokeStyle = v.image ? 'rgba(126,166,232,.16)' : 'rgba(70,100,170,.22)';
         ctx.lineWidth = px;
         ctx.beginPath();
         for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
