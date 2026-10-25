@@ -434,6 +434,7 @@ const Campaign = (() => {
           <div class="nb-title">
             <input class="campaign-name" data-ref="name" value="${esc(cp.name)}" placeholder="Untitled campaign" aria-label="Campaign name">
             <textarea class="campaign-pitch" data-ref="pitch" rows="1" placeholder="One line about this campaign: the premise, the tone, the big threat…" aria-label="Campaign summary">${esc(cp.pitch || '')}</textarea>
+            <button class="btn btn-guide" data-action="guide" data-ref="guideBtn" hidden><span aria-hidden="true">▶</span> Open the campaign guide</button>
           </div>
           <div class="nb-tools">
             <input type="search" class="nb-search" data-ref="search" placeholder="Search everything" aria-label="Search the campaign">
@@ -634,6 +635,7 @@ const Campaign = (() => {
       ref('sections').querySelectorAll('textarea').forEach(autoSize);
       renderLists();
       renderFilter();
+      ref('guideBtn').hidden = !Guide.has(cp);
     }
 
     function autoSize(t) {
@@ -800,6 +802,21 @@ const Campaign = (() => {
       Util.toast(`${total} creature${total > 1 ? 's' : ''} added to the combat tracker in the Party room.${guessed ? ' Set HP and AC there for any not listed in this campaign\'s monsters.' : ''}`);
     }
 
+    /* Open an entry in the notebook and scroll to it. */
+    function jumpTo(secId, id) {
+      const sec = sectionById(secId);
+      const target = sec && sec.entries.find(x => x.id === id);
+      if (!target) return;
+      query = ''; ref('search').value = ''; tagFilter = ''; show = 'all';
+      sec.open = true; target.open = true; save(); render();
+      const node = el.querySelector(`[data-entry="${target.id}"]`);
+      node?.scrollIntoView({ behavior: Util.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      node?.querySelector('.entry-head')?.focus({ preventScroll: true });
+    }
+    function openGuide() {
+      Guide.open(cp, { onClose: () => { if (el.isConnected) render(); }, onJump: jumpTo });
+    }
+
     /* ---------- Events ---------- */
     el.addEventListener('click', e => {
       const btn = e.target.closest('button');
@@ -864,17 +881,8 @@ const Campaign = (() => {
           save(); render();
           el.querySelector(`[data-entry="${ctx.entry.id}"] [data-ref-tag]`)?.focus({ preventScroll: true });
           return;
-        case 'jump': {
-          const sec = sectionById(btn.dataset.sec);
-          const target = sec && sec.entries.find(x => x.id === btn.dataset.id);
-          if (!target) return;
-          query = ''; ref('search').value = ''; tagFilter = ''; show = 'all';
-          sec.open = true; target.open = true; save(); render();
-          const node = el.querySelector(`[data-entry="${target.id}"]`);
-          node?.scrollIntoView({ behavior: Util.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
-          node?.querySelector('.entry-head')?.focus({ preventScroll: true });
-          return;
-        }
+        case 'jump': return jumpTo(btn.dataset.sec, btn.dataset.id);
+        case 'guide': return openGuide();
         case 'expand': cp.sections.forEach(s => { s.open = true; }); save(); return render();
         case 'collapse': cp.sections.forEach(s => { s.open = false; s.entries.forEach(x => { x.open = false; }); }); save(); return render();
         case 'export':
@@ -942,7 +950,9 @@ const Campaign = (() => {
 
     render();
     autoSize(ref('pitch'));
+    if (guideNext === cp.id) { guideNext = null; openGuide(); }
   }
+  let guideNext = null; // open the guide right after starting a premade campaign
 
   /*
    * What players may see: only entries marked Known, and only their non-secret fields
@@ -1043,6 +1053,7 @@ const Campaign = (() => {
           return openChooser(content => {
             const made = create(content);
             if (content && content.source) Util.toast(`${made.name} is ready. Room code ${made.roomCode}.`);
+            if (Guide.has(made)) guideNext = made.id;
             location.hash = `#/campaign/${made.id}`;
           });
         case 'upload':
@@ -1099,5 +1110,5 @@ const Campaign = (() => {
     mountLibrary(el);
   }
 
-  return { mount, publicKnown, list, byId, activeId, combat: combatOf, newRoomCode };
+  return { mount, publicKnown, list, byId, activeId, combat: combatOf, newRoomCode, typeOf };
 })();

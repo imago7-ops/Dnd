@@ -24,6 +24,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - **Premade campaigns:** start a new campaign from scratch, from one of four original ready-to-run adventures (village mystery, dungeon crawl, city intrigue, wilderness expedition; levels 1 to 8), or as an empty notebook named after an official adventure you own. Encounters add their creatures to combat with the right HP and AC.
 - **Campaign notebook:** collapsible sections for NPCs, Locations, Factions, Bosses, Monsters and enemies, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes, plus your own sections. Each entry expands into a form with fields that suit it.
 - **Session folders and tags:** Session notes hold one folder per session (party level, date, plan and key scenes, what happened, prep). Tag any entry ("Session 3") and the session's folder lists everything tagged for it under **In this session**; the **All tags** menu shows just one tag's entries. New sessions are numbered and tagged automatically. The premade campaigns come with every session planned and every entry tagged.
+- **Campaign guide:** a full-screen walkthrough of the whole campaign in order. The overview has the timeline and quest arc; each session has its goal, its steps in the order to run them (names in a step open right there with full details), everything the session uses (quests, encounters with creature stats, places, people, monsters, treasure, events), prep and rewards, a notes box and a "played" checkbox. Reveal things to players or add creatures to combat straight from the guide. It opens automatically when you start a premade campaign, and from **Open the campaign guide** in any campaign with numbered sessions.
 - **Known / Hidden** switch on every entry (new entries start Hidden), with a filter and Reveal all / Hide all per section.
 - Weather entries can roll random conditions for the season. NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
 - Search the whole campaign and download/upload campaigns as `.json` files.
@@ -61,6 +62,7 @@ js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet (folders)
 js/premades.js     Starter campaigns and the official adventure list
+js/guide.js        campaign guide (session-by-session walkthrough)
 js/campaign.js     DM campaigns library and notebook
 js/ai.js           AI drafting dialog (talks to the AI helper)
 js/ai-config.js    address of the AI helper
