@@ -248,6 +248,9 @@ const Campaign = (() => {
     c.name = p.name;
     c.pitch = p.pitch;
     c.source = `Premade: ${p.name} (levels ${p.levels})`;
+    c.premadeKey = p.key;
+    // A battle map for every planned encounter, creatures placed and the party's start revealed.
+    c.maps = typeof PremadeMaps !== 'undefined' ? PremadeMaps.forKey(p.key) : [];
     c.sections.forEach(sec => {
       const t = TYPES[sec.type];
       sec.entries = (p.sections[sec.type] || []).map(({ known, tags, ...fields }) => {

@@ -47,6 +47,8 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - **Tokens:** "Add the party" places a token for every player in the room (each player can move their own), "Add everyone in combat" places the combat tracker's creatures, or name a token and tap where it goes. Tap a token to rename it, change its side or size (up to Gargantuan), choose which player moves it, hide it from players, add it to combat or remove it. Tokens show the tracker's names and health, and a gold ring marks whose turn it is.
 - **Players:** drag your own token to move it (the DM's browser checks the move: no moving into fog or walls), measure distances in feet with diagonals counting as one square (5-5-5), and ping a spot or a creature so everyone sees a brief highlight with your name. A long press also pings.
 - **Mouse and touch:** drag to pan, scroll or pinch to zoom, the ⤢ button fits the whole map. **Full screen** fills a phone screen with the map. On the DM's drawing tools, pan with two fingers (or the right mouse button, or hold Space).
+- **Premade maps:** each premade campaign comes with a map for every planned encounter, creatures already placed, the party's starting area revealed and DM notes (seen only by you) on terrain and tactics. Pick the map, click "Show players this map", then "Add the party" to put everyone on the start squares. A campaign started from a premade before maps existed shows an **Add this adventure's maps** button instead.
+- Tokens join up with the combat tracker by name: add an encounter's creatures to combat and "Goblin 2" on the map becomes the tracker's Goblin 2, with its health and turn.
 - Maps save with the campaign, so they sync to your account and come along in campaign downloads.
 
 ### Everyone
@@ -73,6 +75,7 @@ js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet (folders)
 js/premades.js     Starter campaigns and the official adventure list
+js/premade-maps.js battle maps for the starter campaigns' encounters
 js/guide.js        campaign guide (session-by-session walkthrough)
 js/campaign.js     DM campaigns library and notebook
 js/ai.js           AI drafting dialog (talks to the AI helper)

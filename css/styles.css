@@ -1497,3 +1497,6 @@ body.bm-lock .dice-fab { display: none; }
 .bm.bm-none .bm-stage { height: auto; min-height: 0; border-style: dashed; background: transparent; }
 .bm.bm-none .bm-stage canvas, .bm.bm-none .bm-zoom { display: none; }
 .bm.bm-none .bm-empty { position: static; padding: 18px; }
+.bm-notes { font-size: .88rem; color: var(--muted); padding: 7px 10px; border-left: 3px solid var(--gold); background: var(--gold-soft); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.bm-notes b { color: var(--gold); margin-right: 4px; }
+.bm-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }

@@ -72,6 +72,8 @@ const Battlemap = (() => {
     m.fog.on = m.fog.on !== false;
     m.fog.rev = fixStr(m.fog.rev, n, '0', '01');
     if (!Array.isArray(m.tokens)) m.tokens = [];
+    if (m.notes != null) m.notes = clip(m.notes, 1000);
+    if (Array.isArray(m.starts)) m.starts = m.starts.filter(p => p && p.x >= 0 && p.y >= 0 && p.x < m.cols && p.y < m.rows).slice(0, 12);
     if (m.image && (!m.image.data || !m.image.w)) m.image = null;
     return m;
   }
@@ -123,6 +125,20 @@ const Battlemap = (() => {
       if (x >= 0 && y >= 0 && x < m.cols && y < m.rows && vis[y * m.cols + x] === '1') return true;
     }
     return false;
+  }
+
+  /* Tokens placed by name (premade maps, or typed in) join up with the combat tracker's creature of
+     the same name ("Goblin 2") once it's added to combat. */
+  function linkByName(m, fight) {
+    if (!m || !fight || !fight.combatants.length) return;
+    const live = id => id && fight.combatants.some(c => c.id === id);
+    const used = new Set(m.tokens.map(t => t.cb).filter(live));
+    m.tokens.forEach(t => {
+      if (t.owner || live(t.cb)) return;
+      const n = String(t.name || '').trim().toLowerCase();
+      const cb = n && fight.combatants.find(c => !used.has(c.id) && !c.playerKey && String(c.name).trim().toLowerCase() === n);
+      if (cb) { t.cb = cb.id; used.add(cb.id); }
+    });
   }
 
   function cbFor(t, fight) {
@@ -207,6 +223,7 @@ const Battlemap = (() => {
       }
       image = { w: im.w, h: im.h, s: im.s, ox: im.ox, oy: im.oy, tiles };
     }
+    linkByName(m, Campaign.combat(campaignId));
     const base = { id: m.id, name: m.name, cols: m.cols, rows: m.rows, ft: m.ft, grid: m.grid, terrain, diff, vis, image };
     const fight = Campaign.combat(campaignId);
     const shown = m.tokens.filter(t => tokenSeen(m, t, vis));
@@ -262,6 +279,7 @@ const Battlemap = (() => {
     const m = shownMap(cp);
     if (!m) return out;
     const fight = Campaign.combat(campaignId);
+    linkByName(m, fight);
     const vis = visOf(m);
     m.tokens.forEach(t => {
       if (tokenSeen(m, t, vis)) return;
@@ -477,7 +495,8 @@ const Battlemap = (() => {
     if (v.vis) {
       for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
         if (v.vis[y * cols + x] === '1') continue;
-        ctx.fillStyle = v.isDM ? (v.image ? 'rgba(6,7,12,.55)' : 'rgba(70,100,170,.12)') : '#06070b';
+        // DM: drawn squares under fog are dimmed; empty ones keep the white sheet with a faint tint.
+        ctx.fillStyle = v.isDM ? (v.image || v.terrain[y * cols + x] !== '.' ? 'rgba(6,7,12,.5)' : 'rgba(70,100,170,.12)') : '#06070b';
         ctx.fillRect(x - px * 0.5, y - px * 0.5, 1 + px, 1 + px);
       }
       if (v.isDM) {
@@ -693,6 +712,7 @@ const Battlemap = (() => {
             ${isDM ? '<button class="bm-tool bm-undo" data-bm="undo" title="Undo the last drawing or fog change"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>Undo</span></button>' : ''}
           </div>
           <div class="bm-opts" data-ref="opts"></div>
+          ${isDM ? '<p class="bm-notes" data-ref="notes" hidden></p>' : ''}
           <div class="bm-stage" data-ref="stage">
             <canvas data-ref="canvas" aria-label="Battle map"></canvas>
             <div class="bm-empty" data-ref="empty" hidden></div>
@@ -718,6 +738,7 @@ const Battlemap = (() => {
         const m = current();
         if (!m) return null;
         const fight = Campaign.combat(campaignId);
+        linkByName(m, fight);
         const imgEl = m.image ? imgFor(m.image.data) : null;
         return {
           id: m.id, cols: m.cols, rows: m.rows, ft: m.ft, grid: m.grid, terrain: m.terrain, diff: m.diff,
@@ -901,11 +922,18 @@ const Battlemap = (() => {
       const maps = mapsOf(c);
       const m = current();
       const shown = c && c.shownMapId;
+      const extra = typeof PremadeMaps !== 'undefined' ? PremadeMaps.missing(c).length : 0;
+      const notes = $('notes');
+      if (notes) {
+        notes.hidden = !(m && m.notes);
+        notes.innerHTML = m && m.notes ? `<b>DM notes</b> ${esc(m.notes)}` : '';
+      }
+      const addPremade = extra ? `<button class="btn btn-small" data-bm="premade">Add this adventure's maps (${extra})</button>` : '';
       box.innerHTML = maps.length ? `
         <select data-bm="pick" aria-label="Map to edit">${maps.map(x => `<option value="${x.id}" ${m && x.id === m.id ? 'selected' : ''}>${esc(x.name)}${x.id === shown ? ' (players see this)' : ''}</option>`).join('')}</select>
         <button class="btn btn-small" data-bm="new">New map</button>
-        ${m && m.id === shown ? '<button class="btn btn-small" data-bm="unshow">Stop showing players</button>' : '<button class="btn btn-small btn-primary" data-bm="show">Show players this map</button>'}`
-        : '<button class="btn btn-small btn-primary" data-bm="new">Make a map</button>';
+        ${m && m.id === shown ? '<button class="btn btn-small" data-bm="unshow">Stop showing players</button>' : '<button class="btn btn-small btn-primary" data-bm="show">Show players this map</button>'}${addPremade}`
+        : `<button class="btn btn-small btn-primary" data-bm="new">Make a map</button>${addPremade}`;
     }
 
     function renderUnder() {
@@ -995,8 +1023,9 @@ const Battlemap = (() => {
       if (v) { e.hidden = true; return; }
       if (card.classList.contains('bm-fullscreen')) toggleFull(false);
       e.hidden = false;
+      const extra = isDM && typeof PremadeMaps !== 'undefined' ? PremadeMaps.missing(cp()).length : 0;
       e.innerHTML = isDM
-        ? '<p>No maps in this campaign yet.</p><button class="btn btn-primary" data-bm="new">Make a map</button>'
+        ? `<p>No maps in this campaign yet.</p><div class="bm-empty-actions"><button class="btn btn-primary" data-bm="new">Make a map</button>${extra ? `<button class="btn" data-bm="premade">Add this adventure's ${extra} maps</button>` : ''}</div>`
         : '<p>The DM hasn\'t shared a map yet.</p>';
     }
 
@@ -1073,6 +1102,9 @@ const Battlemap = (() => {
 
     function addToken(m, spec, at) {
       const size = Util.clamp(Util.num(spec.size, 1), 1, 4);
+      // Premade maps mark where the party starts: use a free start square first.
+      const start = !at && spec.kind === 'pc' && size === 1 && (m.starts || []).find(p => !m.tokens.some(t => p.x >= t.x && p.x < t.x + t.size && p.y >= t.y && p.y < t.y + t.size));
+      if (start) at = { x: start.x + 0.5, y: start.y + 0.5 };
       const pos = at ? { x: Util.clamp(Math.floor(at.x - (size - 1) / 2), 0, m.cols - size), y: Util.clamp(Math.floor(at.y - (size - 1) / 2), 0, m.rows - size) } : freeSpot(m, size, viewCenter(), spec.kind === 'pc' && m.fog.on && m.fog.rev.includes('1'));
       const t = {
         id: Util.uid(), name: clip(spec.name, 40) || 'Token', kind: KIND_COLOR[spec.kind] ? spec.kind : 'enemy', size,
@@ -1380,6 +1412,14 @@ const Battlemap = (() => {
           const set = $('settings'); if (set) set.open = true;
           Util.toast(`${nm.name} made. Draw on it, upload a picture in Map settings, then reveal what the party can see with Fog.`);
           return;
+        }
+        case 'premade': {
+          const n = PremadeMaps.addMissing(c);
+          const maps = mapsOf(c);
+          if (n) ui.editingId = maps[maps.length - n].id;
+          cam.fitted = '';
+          commit(); renderAll();
+          return Util.toast(n ? `Added ${n} map${n > 1 ? 's' : ''}, one for each planned encounter, with the creatures in place. Pick one, then "Show players this map".` : 'This campaign already has all of its maps.');
         }
         case 'show': c.shownMapId = m.id; commit(); renderMaps(); return Util.toast(`Players now see ${m.name}.`);
         case 'unshow': c.shownMapId = null; commit(); renderMaps(); return Util.toast('Players no longer see a map.');
