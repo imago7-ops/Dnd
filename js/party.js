@@ -204,7 +204,7 @@ const Party = (() => {
                 <input class="code-input" name="code" maxlength="${Room.CODE_LEN}" placeholder="${'•'.repeat(Room.CODE_LEN)}" autocapitalize="characters" spellcheck="false" value="${esc((Room.state.code) || '')}" required>
               </label>
               <label class="field"><span>Your name</span>
-                <input name="name" maxlength="40" value="${esc((saved && saved.name) || (active && active.name) || '')}" placeholder="How the table knows you" required>
+                <input name="name" maxlength="40" value="${esc((saved && saved.name) || (typeof Account !== 'undefined' && Account.user() && Account.user().username) || (active && active.name) || '')}" placeholder="How the table knows you" required>
               </label>
               <label class="field"><span>Bring a character</span>
                 <select name="char">

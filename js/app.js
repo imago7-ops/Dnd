@@ -24,7 +24,7 @@ const App = (() => {
         <div class="welcome-inner">
           <div class="brand brand-lg">${Dice.D20_SVG}<span>Campaign Codex</span></div>
           <h1>How are you joining the table?</h1>
-          <p class="lede">Pick one to get started. You can switch later, and everything saves in this browser.</p>
+          <p class="lede">Pick one to get started. You can switch later${Account.signedIn() ? `, and everything saves to your account, ${Util.esc(Account.user().username)}.` : ', and everything saves in this browser.'}</p>
           <div class="role-grid">
             <button class="role-card role-player" data-role="player">
               <span class="role-art">${Dice.D20_SVG}</span>
@@ -62,6 +62,7 @@ const App = (() => {
           </nav>
           <div class="topbar-end">
             <a class="room-pill" data-ref="roomPill" href="#/room" hidden></a>
+            <span class="acct-slot" data-ref="acct"></span>
             <span class="role-pill role-${role}">${ROLE_NAME[role]}</span>
             <a class="link-btn" href="#/welcome">Switch role</a>
           </div>
@@ -73,6 +74,7 @@ const App = (() => {
         <button class="roll-pop" data-ref="rollPop" hidden aria-live="polite"></button>
       </div>`;
     Dice.mount(document.getElementById('tray'));
+    Account.mountChip(app.querySelector('[data-ref="acct"]'));
     wirePhoneDice();
     renderRoomPill();
   }
@@ -113,8 +115,35 @@ const App = (() => {
   }
   Room.on(renderRoomPill);
 
+  /* The sign-in screen: shown on a first visit, or from the Sign in link. Afterwards you
+     land where you were headed (e.g. a shared #/campaign link), or your usual page. */
+  let headedTo = '';
+  function accountScreen() {
+    Account.mountScreen(app, () => {
+      if (currentPage() !== 'account' && !Account.signedIn()) return; // you've moved on already
+      const target = headedTo || (Store.state.role ? `#/${PAGES[Store.state.role][0][0]}` : '#/welcome');
+      headedTo = '';
+      if (Account.signedIn()) {
+        // Fresh start with the account's data loaded.
+        location.hash = Store.state.role ? `#/${PAGES[Store.state.role][0][0]}` : '#/welcome';
+        location.reload();
+      } else if (location.hash === target) route();
+      else location.hash = target;
+    });
+  }
+
   function route() {
     let page = currentPage();
+    if (page === 'account') {
+      if (Account.signedIn()) { history.replaceState(null, '', '#/'); page = ''; }
+      else return accountScreen();
+    }
+    // First visit (or signed out): offer to sign in before anything else.
+    if (!Account.signedIn() && !Account.skipped() && Account.available() && AI.endpoint() && !/[?&]noauth/.test(location.search)) {
+      if (page && page !== 'welcome') headedTo = location.hash;
+      history.replaceState(null, '', '#/account');
+      return accountScreen();
+    }
     if (page === 'combat') { page = 'room'; history.replaceState(null, '', '#/room'); }
     // Shared links go straight to a role's page: #/character = player, #/campaign = DM.
     const linkRole = { character: 'player', campaign: 'dm' }[page];
@@ -157,6 +186,20 @@ const App = (() => {
   window.addEventListener('hashchange', route);
   route();
   Room.resume();
+  Account.start();
+
+  /* Changes arrived from another device: redraw the page, unless you're mid-typing. */
+  window.addEventListener('codex:synced', e => {
+    const a = document.activeElement;
+    const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable) && app.contains(a);
+    if (e.detail && e.detail.removedOpen) {
+      Util.toast('What you had open was deleted on another device.', 'error');
+      if (currentPage() === 'campaign') history.replaceState(null, '', '#/campaign');
+      return document.querySelector('.shell') && route();
+    }
+    if (typing || document.querySelector('.modal-backdrop')) return Util.toast('Updated with changes from your other devices.');
+    if (document.querySelector('.shell')) route();
+  });
 
   return { route };
 })();

@@ -134,9 +134,10 @@ const Campaign = (() => {
     },
     sessions: {
       label: 'Session notes', one: 'session', color: 'var(--faint)',
-      blurb: 'What happened each session, and what to prep next.',
-      fields: [['name', 'Title', 'text'], ['date', 'Date played', 'date'], ['summary', 'What happened', 'textarea'], ['prep', 'Prep for next time', 'textarea']],
-      summary: ['date'],
+      blurb: 'One folder per session: the plan, what happened, and everything tagged for it.',
+      fields: [['name', 'Title', 'text'], ['level', 'Party level', 'text'], ['date', 'Date played', 'date'],
+        ['plan', 'Plan and key scenes', 'textarea'], ['summary', 'What happened', 'textarea'], ['prep', 'Prep for next time', 'textarea']],
+      summary: ['date'], linked: true,
     },
   };
   const CUSTOM = {
@@ -249,11 +250,11 @@ const Campaign = (() => {
     c.source = `Premade: ${p.name} (levels ${p.levels})`;
     c.sections.forEach(sec => {
       const t = TYPES[sec.type];
-      sec.entries = (p.sections[sec.type] || []).map(({ known, ...fields }) => {
+      sec.entries = (p.sections[sec.type] || []).map(({ known, tags, ...fields }) => {
         const f = {};
         t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
         Object.entries(fields).forEach(([k, v]) => { f[k] = typeof v === 'number' ? String(v) : v; });
-        return { id: Util.uid(), open: false, known: Boolean(known), f };
+        return { id: Util.uid(), open: false, known: Boolean(known), tags: tags ? [...tags] : [], f };
       });
       sec.open = sec.type === 'sessions' || sec.type === 'locations';
     });
@@ -424,6 +425,7 @@ const Campaign = (() => {
     const save = () => { cp.updated = Date.now(); Store.save(); };
     let query = '';
     let show = 'all'; // all | known | hidden
+    let tagFilter = ''; // show only entries with this tag
 
     el.innerHTML = `
       <div class="notebook">
@@ -436,6 +438,7 @@ const Campaign = (() => {
           <div class="nb-tools">
             <input type="search" class="nb-search" data-ref="search" placeholder="Search everything" aria-label="Search the campaign">
             <div class="seg vis-filter" role="radiogroup" aria-label="Show entries" data-ref="filter"></div>
+            <select class="tag-filter" data-ref="tagFilter" aria-label="Show entries with a tag"></select>
             <a class="room-code-chip" href="#/room" title="Players join this campaign's party room with this code">Room code <b>${esc(cp.roomCode)}</b></a>
             <details class="menu">
               <summary class="btn">More</summary>
@@ -455,6 +458,7 @@ const Campaign = (() => {
         <datalist id="dl-locations"></datalist>
         <datalist id="dl-factions"></datalist>
         <datalist id="dl-npcs"></datalist>
+        <datalist id="dl-tags"></datalist>
       </div>`;
 
     const ref = n => el.querySelector(`[data-ref="${n}"]`);
@@ -473,13 +477,24 @@ const Campaign = (() => {
       ['locations', 'factions', 'npcs'].forEach(t => {
         ref('sections').closest('.notebook').querySelector(`#dl-${t}`).innerHTML = names(t).map(n => `<option value="${esc(n)}">`).join('');
       });
+      el.querySelector('#dl-tags').innerHTML = allTags().map(n => `<option value="${esc(n)}">`).join('');
     }
+
+    const tagsOf = e => (Array.isArray(e.tags) ? e.tags : []);
+    /* Every tag in the campaign, "Session 2" before "Session 10". */
+    function allTags() {
+      const set = new Set();
+      cp.sections.forEach(sec => sec.entries.forEach(e => tagsOf(e).forEach(t => set.add(t))));
+      return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }
+    const filtering = () => Boolean(query || tagFilter);
 
     function matches(entry) {
       if (show === 'known' && !entry.known) return false;
       if (show === 'hidden' && entry.known) return false;
+      if (tagFilter && !tagsOf(entry).includes(tagFilter)) return false;
       if (!query) return true;
-      return Object.values(entry.f).some(v => String(v).toLowerCase().includes(query));
+      return Object.values(entry.f).some(v => String(v).toLowerCase().includes(query)) || tagsOf(entry).some(t => t.toLowerCase().includes(query));
     }
 
     const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="ico" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle class="ico" cx="12" cy="12" r="3"/></svg>';
@@ -497,6 +512,12 @@ const Campaign = (() => {
       const known = cp.sections.reduce((n, sec) => n + sec.entries.filter(x => x.known).length, 0);
       ref('filter').innerHTML = [['all', `All (${all})`], ['known', `Known (${known})`], ['hidden', `Hidden (${all - known})`]]
         .map(([k, label]) => `<button role="radio" data-show="${k}" class="${show === k ? 'on' : ''}" aria-checked="${show === k}">${label}</button>`).join('');
+      const tags = allTags();
+      if (tagFilter && !tags.includes(tagFilter)) tagFilter = '';
+      const sel = ref('tagFilter');
+      sel.hidden = !tags.length;
+      sel.innerHTML = `<option value="">All tags</option>${tags.map(t => `<option value="${esc(t)}" ${t === tagFilter ? 'selected' : ''}>${esc(t)}</option>`).join('')}`;
+      sel.classList.toggle('on', Boolean(tagFilter));
     }
 
     function summaryOf(t, e) {
@@ -507,6 +528,7 @@ const Campaign = (() => {
       const t = typeOf(sec);
       const badge = t.badge && e.f[t.badge] ? `${t.badgePrefix || ''}${e.f[t.badge]}` : '';
       const open = e.open || (query && matches(e));
+      const tags = tagsOf(e);
       return `
         <article class="entry ${open ? 'open' : ''} ${e.known ? 'is-known' : 'is-hidden'}" data-entry="${e.id}">
           <div class="entry-row">
@@ -514,6 +536,7 @@ const Campaign = (() => {
               <span class="chev" aria-hidden="true"></span>
               <span class="entry-name ${e.f.name ? '' : 'unnamed'}">${esc(e.f.name || `Unnamed ${t.one}`)}</span>
               <span class="entry-meta">${esc(summaryOf(t, e))}</span>
+              ${tags.length ? `<span class="tag-chips">${tags.map(x => `<span class="tag-chip">${esc(x)}</span>`).join('')}</span>` : ''}
               ${badge ? `<span class="badge" data-tone="${esc(String(e.f[t.badge]).toLowerCase().replace(/\s+/g, '-'))}">${esc(badge)}</span>` : ''}
             </button>
             ${visButton(e)}
@@ -522,6 +545,14 @@ const Campaign = (() => {
             <div class="entry-grid">
               ${t.fields.map(([k, label, type, opt]) => fieldHTML(k, label, type, opt, e.f[k])).join('')}
             </div>
+            <div class="tag-editor">
+              <span class="tag-label">Tags</span>
+              ${tags.map(x => `<span class="tag-chip edit"><button class="tag-go" data-action="filter-tag" data-tag="${esc(x)}" title="Show everything tagged ${esc(x)}">${esc(x)}</button><button class="tag-x" data-action="remove-tag" data-tag="${esc(x)}" aria-label="Remove tag ${esc(x)}">×</button></span>`).join('')}
+              <form class="tag-add" data-action-form="add-tag" autocomplete="off">
+                <input data-ref-tag list="dl-tags" placeholder="${tags.length ? 'Add tag' : 'Add a tag, e.g. Session 1'}" aria-label="Add a tag">
+              </form>
+            </div>
+            ${t.linked ? linkedHTML(e) : ''}
             <div class="entry-actions">
               ${t.roll ? '<button class="btn" data-action="roll-weather">Roll random weather</button>' : ''}
               ${t.combat ? `<button class="btn" data-action="to-combat">${t.combat === 'creatures' ? 'Add creatures to combat' : 'Add to combat'}</button>` : ''}
@@ -530,6 +561,22 @@ const Campaign = (() => {
             </div>
           </div>` : ''}
         </article>`;
+    }
+
+    /* For a session: every other entry that shares one of its tags, grouped by section. */
+    function linkedHTML(e) {
+      const tags = tagsOf(e);
+      if (!tags.length) return `<div class="linked"><p class="muted small">Tag this session (for example "Session 1"), then give the same tag to the NPCs, places and encounters it uses. They'll be listed here.</p></div>`;
+      const groups = cp.sections.map(sec => ({
+        sec, items: sec.entries.filter(x => x !== e && tagsOf(x).some(t => tags.includes(t))),
+      })).filter(g => g.items.length && g.sec.type !== 'sessions');
+      if (!groups.length) return `<div class="linked"><p class="muted small">Nothing else is tagged ${esc(tags.join(' or '))} yet.</p></div>`;
+      return `<div class="linked">
+        <h4>In this session</h4>
+        ${groups.map(g => `<div class="linked-group"><span class="linked-sec" style="--c:${typeOf(g.sec).color}">${esc(g.sec.label)}</span>
+          ${g.items.map(x => `<button class="link-btn linked-item" data-action="jump" data-sec="${g.sec.id}" data-id="${x.id}">${esc(x.f.name || 'Unnamed')}${x.known ? '' : ' <span class="muted">(hidden)</span>'}</button>`).join('')}
+        </div>`).join('')}
+      </div>`;
     }
 
     function fieldHTML(k, label, type, opt, value) {
@@ -551,8 +598,8 @@ const Campaign = (() => {
     function sectionHTML(sec) {
       const t = typeOf(sec);
       const shown = sec.entries.filter(matches);
-      if (query && !shown.length) return '';
-      const open = sec.open || Boolean(query);
+      if (filtering() && !shown.length) return '';
+      const open = sec.open || filtering();
       const knownCount = sec.entries.filter(x => x.known).length;
       const emptyMsg = sec.entries.length && show !== 'all'
         ? `<p class="nb-empty">No ${show} ${esc(sec.label.toLowerCase())}.</p>`
@@ -583,7 +630,7 @@ const Campaign = (() => {
 
     function render() {
       const html = cp.sections.map(sectionHTML).join('');
-      ref('sections').innerHTML = html || `<p class="nb-empty">Nothing matches “${esc(query)}”.</p>`;
+      ref('sections').innerHTML = html || `<p class="nb-empty">Nothing matches${query ? ` “${esc(query)}”` : ''}${tagFilter ? ` with the tag ${esc(tagFilter)}` : ''}.</p>`;
       ref('sections').querySelectorAll('textarea').forEach(autoSize);
       renderLists();
       renderFilter();
@@ -599,7 +646,16 @@ const Campaign = (() => {
       const f = {};
       t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
       if (filled) Object.assign(f, filled);
-      const e = { id: Util.uid(), open: true, known: false, f };
+      const e = { id: Util.uid(), open: true, known: false, tags: [], f };
+      if (tagFilter) e.tags.push(tagFilter);
+      // New session folders are numbered and tagged automatically.
+      if (sec.type === 'sessions' && !filled) {
+        const used = new Set(allTags());
+        let n = 1;
+        while (used.has(`Session ${n}`)) n++;
+        f.name = `Session ${n}`;
+        if (!e.tags.includes(`Session ${n}`)) e.tags.push(`Session ${n}`);
+      }
       if (show === 'known') e.known = true;
       sec.entries.unshift(e);
       sec.open = true;
@@ -755,7 +811,7 @@ const Campaign = (() => {
       const ctx = btn.closest('[data-section]') ? findEntry(btn) : {};
       switch (a) {
         case 'toggle-section':
-          if (query) return;
+          if (filtering()) return;
           ctx.sec.open = !ctx.sec.open; save(); return render();
         case 'add-entry': return addEntry(ctx.sec);
         case 'ai-draft': return openAI(ctx.sec, null);
@@ -799,6 +855,26 @@ const Campaign = (() => {
           rollWeather(ctx.entry.f); save(); render();
           return Util.toast(`Rolled: ${ctx.entry.f.conditions}, ${ctx.entry.f.temperature.toLowerCase()}, ${ctx.entry.f.wind.toLowerCase()}.`);
         case 'to-combat': return toCombat(ctx.sec, ctx.entry);
+        case 'filter-tag':
+          tagFilter = btn.dataset.tag; render();
+          ref('tagFilter').scrollIntoView({ block: 'nearest' });
+          return Util.toast(`Showing everything tagged ${tagFilter}.`);
+        case 'remove-tag':
+          ctx.entry.tags = tagsOf(ctx.entry).filter(x => x !== btn.dataset.tag);
+          save(); render();
+          el.querySelector(`[data-entry="${ctx.entry.id}"] [data-ref-tag]`)?.focus({ preventScroll: true });
+          return;
+        case 'jump': {
+          const sec = sectionById(btn.dataset.sec);
+          const target = sec && sec.entries.find(x => x.id === btn.dataset.id);
+          if (!target) return;
+          query = ''; ref('search').value = ''; tagFilter = ''; show = 'all';
+          sec.open = true; target.open = true; save(); render();
+          const node = el.querySelector(`[data-entry="${target.id}"]`);
+          node?.scrollIntoView({ behavior: Util.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+          node?.querySelector('.entry-head')?.focus({ preventScroll: true });
+          return;
+        }
         case 'expand': cp.sections.forEach(s => { s.open = true; }); save(); return render();
         case 'collapse': cp.sections.forEach(s => { s.open = false; s.entries.forEach(x => { x.open = false; }); }); save(); return render();
         case 'export':
@@ -830,8 +906,24 @@ const Campaign = (() => {
       if (t === ref('search')) { query = t.value.trim().toLowerCase(); render(); }
     });
 
+    el.addEventListener('submit', e => {
+      const form = e.target.closest('[data-action-form="add-tag"]');
+      if (!form) return;
+      e.preventDefault();
+      const input = form.querySelector('[data-ref-tag]');
+      const { entry } = findEntry(form);
+      const tag = input.value.trim().replace(/\s+/g, ' ').slice(0, 40);
+      if (!tag) return;
+      // Reuse an existing tag's spelling ("session 1" -> "Session 1").
+      const same = allTags().find(x => x.toLowerCase() === tag.toLowerCase()) || tag;
+      if (!tagsOf(entry).includes(same)) entry.tags = [...tagsOf(entry), same];
+      save(); render();
+      el.querySelector(`[data-entry="${entry.id}"] [data-ref-tag]`)?.focus({ preventScroll: true });
+    });
+
     el.addEventListener('change', e => {
       const t = e.target;
+      if (t === ref('tagFilter')) { tagFilter = t.value; return render(); }
       if (t.tagName === 'SELECT' && t.dataset.field) render();
       if (t.dataset.field === 'name') renderLists();
     });

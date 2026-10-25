@@ -26,7 +26,7 @@ const AI = (() => {
       const r = await fetch(endpoint(), { method: 'GET' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'The AI helper refused the connection.');
-      statusCache = { connected: true, providers: d.providers || [], needsCode: Boolean(d.needsCode) };
+      statusCache = { connected: true, providers: d.providers || [], needsCode: Boolean(d.needsCode), accounts: d.accounts || null };
     } catch (e) {
       return { connected: false, error: e.message && e.message !== 'Failed to fetch' ? e.message : "Couldn't reach the AI helper. Check your internet connection." };
     }
@@ -38,7 +38,11 @@ const AI = (() => {
     try {
       r = await fetch(endpoint(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Access-Code': code || '' },
+        headers: {
+          'Content-Type': 'application/json', 'X-Access-Code': code || '',
+          // Signed-in DMs also get their account name in the AI activity log.
+          ...(typeof Account !== 'undefined' && Account.idToken() ? { Authorization: `Bearer ${Account.idToken()}` } : {}),
+        },
         body: JSON.stringify({ provider, system, prompt, meta }),
       });
     } catch {
@@ -309,5 +313,5 @@ const AI = (() => {
     if (endpoint() && settings().admin) load();
   }
 
-  return { open, openLog, settings, endpoint, parseJSON, clean };
+  return { open, openLog, settings, endpoint, status, parseJSON, clean };
 })();

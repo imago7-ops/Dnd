@@ -1,12 +1,14 @@
 # Campaign Codex
 
-A browser-based D&D 5e (2024 rules) table companion. No install, no build step, no account.
+A browser-based D&D 5e (2024 rules) table companion. No install and no build step. Accounts are optional.
 
 **Live site:** https://imago7-ops.github.io/Dnd/
 
 ## What it does
 
-**First visit:** choose whether you're a **Player** or the **Dungeon Master**. Switch any time with "Switch role" in the top bar.
+**First visit:** sign in, create an account (email, password and a username), or continue without one. Then choose whether you're a **Player** or the **Dungeon Master**. Switch any time with "Switch role" in the top bar.
+
+**Accounts:** signed-in characters and campaigns sync to every device you use. Changes save in the browser first and reach your account a few seconds later. The account menu (your username, top right) has Sync now, Change username, Sign out and Delete account. Without an account, everything stays in that one browser.
 
 **Works on phones and desktops.** On phones the layout stacks into one column, the dice tray opens from a floating **Dice** button, and rolls you make from your sheet pop up at the bottom of the screen.
 
@@ -21,6 +23,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install, no build step, 
 - **Campaigns library:** as many campaigns as you like, each a folder with its own notes, combat tracker, table-talk history and permanent party room code.
 - **Premade campaigns:** start a new campaign from scratch, from one of four original ready-to-run adventures (village mystery, dungeon crawl, city intrigue, wilderness expedition; levels 1 to 8), or as an empty notebook named after an official adventure you own. Encounters add their creatures to combat with the right HP and AC.
 - **Campaign notebook:** collapsible sections for NPCs, Locations, Factions, Bosses, Monsters and enemies, Weather, Abnormalities, Quests, Encounters, Items and loot, Lore and history, and Session notes, plus your own sections. Each entry expands into a form with fields that suit it.
+- **Session folders and tags:** Session notes hold one folder per session (party level, date, plan and key scenes, what happened, prep). Tag any entry ("Session 3") and the session's folder lists everything tagged for it under **In this session**; the **All tags** menu shows just one tag's entries. New sessions are numbered and tagged automatically. The premade campaigns come with every session planned and every entry tagged.
 - **Known / Hidden** switch on every entry (new entries start Hidden), with a filter and Reveal all / Hide all per section.
 - Weather entries can roll random conditions for the season. NPCs and bosses go straight into combat; encounters add every creature listed ("3 Goblin", "Shark x2").
 - Search the whole campaign and download/upload campaigns as `.json` files.
@@ -37,7 +40,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install, no build step, 
 ### Everyone
 - **Dice tray:** d4–d100, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can tap to roll again.
 
-Everything saves automatically in your browser. Data is per browser and per site address, so use Download/Upload to move characters or campaigns between devices.
+Everything saves automatically in your browser, and to your account if you're signed in. Without an account, data is per browser and per site address, so use Download/Upload to move characters or campaigns between devices.
 
 ## Run it
 
@@ -61,8 +64,9 @@ js/premades.js     Starter campaigns and the official adventure list
 js/campaign.js     DM campaigns library and notebook
 js/ai.js           AI drafting dialog (talks to the AI helper)
 js/ai-config.js    address of the AI helper
-server/aws/index.js          the AI helper (AWS Lambda): keeps API keys secret, logs requests
-server/aws/template.yaml     one-click AWS CloudFormation template (built from index.js)
+js/account.js      sign-in screen, account menu and syncing to your account
+server/aws/index.js          the AI helper (AWS Lambda): keeps API keys secret, logs requests, saves account data
+server/aws/template.yaml     one-click AWS CloudFormation template (built from index.js), incl. Cognito accounts
 server/aws/build-template.py rebuilds template.yaml after editing index.js
 amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)

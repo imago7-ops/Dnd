@@ -5,6 +5,9 @@
  * This function looks up who the code belongs to, adds your secret API key, asks Claude or
  * ChatGPT, logs the request (who, when, what, cost) to DynamoDB and returns { text }.
  *
+ * It also stores each signed-in person's characters and campaigns (accounts are an Amazon
+ * Cognito user pool; the site sends the person's sign-in token and this function checks it).
+ *
  * Environment variables (set by the CloudFormation template):
  *   ANTHROPIC_API_KEY, OPENAI_API_KEY   your AI keys (either may be empty to switch that AI off)
  *   ACCESS_CODES     "Name=code, Name2=code2"  one code per person; the name goes in the log
@@ -12,11 +15,15 @@
  *   ALLOWED_ORIGINS  websites allowed to call this, comma separated
  *   ANTHROPIC_MODEL, OPENAI_MODEL, MAX_TOKENS, DAILY_LIMIT (requests per person per day)
  *   LOG_TABLE        DynamoDB table for the activity log
+ *   USER_POOL_ID, USER_POOL_CLIENT_ID   the Cognito user pool and the website's client
+ *   DATA_TABLE       DynamoDB table for people's saved characters and campaigns
+ *   INVITE_REQUIRED  "yes" if new accounts need an invite code
  */
 'use strict';
-const { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand, GetItemCommand, DeleteItemCommand } = require('@aws-sdk/client-dynamodb');
 const db = new DynamoDBClient({});
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const DEFAULTS = { anthropicModel: 'claude-sonnet-5-5', openaiModel: 'gpt-6.1-sol', maxTokens: 1500, dailyLimit: 100 };
 // Estimated dollars per million tokens [input, output], for the log's cost column.
@@ -53,9 +60,10 @@ function respond(status, data, origin, allowed) {
     statusCode: status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
+      // A site that isn't allowed still gets to read the "not allowed" message (and nothing else).
+      'Access-Control-Allow-Origin': allowed.includes(origin) || status === 403 ? (origin || allowed[0]) : allowed[0],
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Access-Code, X-Admin-Code',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Access-Code, X-Admin-Code',
       'Access-Control-Max-Age': '86400',
       Vary: 'Origin',
     },
@@ -141,6 +149,157 @@ function cost(model, inT, outT) {
   return Math.round(((inT * p[0] + outT * p[1]) / 1e6) * 100000) / 100000;
 }
 
+/* ---------- Accounts: checking sign-in tokens ---------- */
+const b64url = s => Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+let jwks = null, jwksAt = 0;
+
+async function signingKeys(iss, fresh) {
+  if (fresh || !jwks || Date.now() - jwksAt > 6 * 3600e3) {
+    const r = await fetch(`${iss}/.well-known/jwks.json`);
+    if (!r.ok) throw new Error('could not load sign-in keys');
+    jwks = (await r.json()).keys || [];
+    jwksAt = Date.now();
+  }
+  return jwks;
+}
+
+/* The person's details if the token is a valid, unexpired sign-in token from our user pool. */
+async function verifyToken(token) {
+  const pool = env('USER_POOL_ID');
+  if (!pool || !token) return null;
+  const parts = String(token).split('.');
+  if (parts.length !== 3) return null;
+  let head, claims;
+  try { head = JSON.parse(b64url(parts[0])); claims = JSON.parse(b64url(parts[1])); } catch { return null; }
+  const iss = `https://cognito-idp.${pool.split('_')[0]}.amazonaws.com/${pool}`;
+  if (head.alg !== 'RS256' || claims.iss !== iss || claims.token_use !== 'id' || claims.aud !== env('USER_POOL_CLIENT_ID')) return null;
+  if (!claims.exp || claims.exp * 1000 < Date.now() - 5000) return { expired: true };
+  let jwk = (await signingKeys(iss)).find(k => k.kid === head.kid);
+  if (!jwk) jwk = (await signingKeys(iss, true)).find(k => k.kid === head.kid);
+  if (!jwk) return null;
+  const ok = crypto.verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), crypto.createPublicKey({ key: jwk, format: 'jwk' }), b64url(parts[2]));
+  return ok ? { sub: claims.sub, email: claims.email, username: claims.nickname || claims.email } : null;
+}
+
+/* ---------- Accounts: saved characters and campaigns ---------- */
+const KINDS = ['character', 'campaign', 'prefs'];
+const MAX_DOCS = 500;           // per person
+const MAX_DOC_BYTES = 350000;   // compressed; DynamoDB items max out at 400 KB
+
+const userKey = sub => ({ S: `user#${sub}` });
+
+async function listDocs(sub, since, keysOnly) {
+  const items = [];
+  let start;
+  do {
+    const r = await db.send(new QueryCommand({
+      TableName: env('DATA_TABLE'),
+      KeyConditionExpression: 'pk = :p',
+      ExpressionAttributeValues: { ':p': userKey(sub), ...(since ? { ':s': { S: since } } : {}) },
+      ...(since ? { FilterExpression: 'updated > :s' } : {}),
+      ...(keysOnly ? { ProjectionExpression: 'pk, sk' } : {}),
+      ExclusiveStartKey: start,
+    }));
+    items.push(...(r.Items || []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return items;
+}
+
+function docOut(it) {
+  const [kind, ...rest] = it.sk.S.split('#');
+  const doc = { kind, id: rest.join('#'), rev: Number(it.rev ? it.rev.N : 0), updated: it.updated ? it.updated.S : '' };
+  if (it.deleted && it.deleted.BOOL) doc.deleted = true;
+  else if (it.data && it.data.B) doc.data = JSON.parse(zlib.gunzipSync(Buffer.from(it.data.B)).toString());
+  return doc;
+}
+
+async function saveDoc(sub, d) {
+  const kind = String(d.kind || ''), id = clip(d.id, 80);
+  if (!KINDS.includes(kind) || !id) return { kind, id, error: 'bad document' };
+  const now = new Date().toISOString();
+  const values = { ':one': { N: '1' }, ':u': { S: now } };
+  let set;
+  if (d.deleted) {
+    set = 'SET updated = :u, deleted = :t REMOVE #d';
+    values[':t'] = { BOOL: true };
+  } else {
+    const data = zlib.gzipSync(Buffer.from(JSON.stringify(d.data == null ? null : d.data)));
+    if (data.length > MAX_DOC_BYTES) return { kind, id, error: 'This is too large to save to your account.' };
+    set = 'SET updated = :u, #d = :d REMOVE deleted';
+    values[':d'] = { B: data };
+  }
+  let condition;
+  if (!d.force) {
+    if (d.baseRev) { condition = 'rev = :base'; values[':base'] = { N: String(Number(d.baseRev)) }; }
+    else condition = 'attribute_not_exists(pk)';
+  }
+  try {
+    const r = await db.send(new UpdateItemCommand({
+      TableName: env('DATA_TABLE'),
+      Key: { pk: userKey(sub), sk: { S: `${kind}#${id}` } },
+      UpdateExpression: `${set} ADD rev :one`,
+      ExpressionAttributeNames: { '#d': 'data' },
+      ExpressionAttributeValues: values,
+      ...(condition ? { ConditionExpression: condition } : {}),
+      ReturnValues: 'ALL_NEW',
+    }));
+    return { kind, id, ok: true, rev: Number(r.Attributes.rev.N), updated: now };
+  } catch (e) {
+    if (e.name !== 'ConditionalCheckFailedException') throw e;
+    const cur = await db.send(new GetItemCommand({ TableName: env('DATA_TABLE'), Key: { pk: userKey(sub), sk: { S: `${kind}#${id}` } } }));
+    return { kind, id, conflict: true, server: cur.Item ? docOut(cur.Item) : null };
+  }
+}
+
+async function deleteAccountData(sub) {
+  const items = await listDocs(sub, '', true);
+  for (const it of items) await db.send(new DeleteItemCommand({ TableName: env('DATA_TABLE'), Key: { pk: it.pk, sk: it.sk } }));
+  return items.length;
+}
+
+function parseBody(event) {
+  try { return JSON.parse(event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString() : (event.body || '{}')); }
+  catch { return null; }
+}
+
+/* GET ?data=1 (&since=time)   POST ?data=1 {docs}   POST ?account=delete */
+async function handleData(event, method, q, h, reply) {
+  if (!env('DATA_TABLE') || !env('USER_POOL_ID')) return reply(501, { error: 'Accounts are not set up on this server yet.' });
+  const bearer = String(h.authorization || '').replace(/^Bearer\s+/i, '');
+  let user;
+  try { user = await verifyToken(bearer); }
+  catch (e) { return reply(503, { error: 'Couldn\'t check your sign-in right now. Try again in a moment.' }); }
+  if (user && user.expired) return reply(401, { error: 'Your sign-in has expired.', expired: true });
+  if (!user) return reply(401, { error: 'Please sign in again.', signedOut: true });
+
+  try {
+    if (method === 'GET') {
+      const since = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(q.since || '') ? q.since : '';
+      const now = new Date().toISOString();
+      const docs = (await listDocs(user.sub, since)).map(docOut);
+      return reply(200, { docs, now });
+    }
+    if (method !== 'POST') return reply(405, { error: 'Use GET or POST.' });
+    if (q.account === 'delete') {
+      const removed = await deleteAccountData(user.sub);
+      console.log('account data deleted', user.sub, removed);
+      return reply(200, { ok: true, removed });
+    }
+    const body = parseBody(event);
+    if (!body || !Array.isArray(body.docs)) return reply(400, { error: 'Nothing to save.' });
+    if (body.docs.length > 100) return reply(413, { error: 'Too many changes at once.' });
+    const existing = (await listDocs(user.sub, '', true)).length;
+    if (existing + body.docs.filter(d => !d.baseRev && !d.deleted).length > MAX_DOCS) return reply(413, { error: `Accounts can hold up to ${MAX_DOCS} characters and campaigns.` });
+    const results = [];
+    for (const d of body.docs) results.push(await saveDoc(user.sub, d));
+    return reply(200, { results });
+  } catch (e) {
+    console.error('data error', e);
+    return reply(500, { error: 'Couldn\'t reach your saved data. Try again in a moment.' });
+  }
+}
+
 exports.handler = async event => {
   const h = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
   const origin = h.origin || '';
@@ -155,22 +314,34 @@ exports.handler = async event => {
   if (env('ANTHROPIC_API_KEY')) providers.push('anthropic');
   if (env('OPENAI_API_KEY')) providers.push('openai');
 
+  const q = event.queryStringParameters || {};
+  if (q.data || q.account) return handleData(event, method, q, h, reply);
+
   if (method === 'GET') {
-    const q = event.queryStringParameters || {};
     if (q.log) {
       if (!env('ADMIN_CODE') || !sameText(h['x-admin-code'], env('ADMIN_CODE'))) return reply(401, { error: 'That admin code is not right.' });
       try { return reply(200, { entries: await readLog() }); }
       catch (e) { return reply(500, { error: `Couldn't read the log: ${e.message}` }); }
     }
-    return reply(200, { ok: true, providers, needsCode: true });
+    const pool = env('USER_POOL_ID');
+    const accounts = pool && env('USER_POOL_CLIENT_ID') && env('DATA_TABLE')
+      ? { region: pool.split('_')[0], clientId: env('USER_POOL_CLIENT_ID'), inviteRequired: env('INVITE_REQUIRED') === 'yes' }
+      : null;
+    return reply(200, { ok: true, providers, needsCode: true, accounts });
   }
   if (method !== 'POST') return reply(405, { error: 'Use POST.' });
 
-  let body = {};
-  try { body = JSON.parse(event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString() : (event.body || '{}')); }
-  catch { return reply(400, { error: 'The request was not valid JSON.' }); }
+  const body = parseBody(event);
+  if (!body) return reply(400, { error: 'The request was not valid JSON.' });
   const meta = body.meta || {};
   const base = { action: clip(meta.action, 20), kind: clip(meta.kind, 40), campaign: clip(meta.campaign, 120), request: clip(meta.request, 500), origin };
+  // If the person is signed in, note their account in the log too.
+  if (h.authorization) {
+    try {
+      const u = await verifyToken(String(h.authorization).replace(/^Bearer\s+/i, ''));
+      if (u && u.email) base.account = clip(`${u.username} <${u.email}>`, 120);
+    } catch { /* the access code is what matters for AI requests */ }
+  }
 
   const who = whoIs(h['x-access-code']);
   if (!who) {

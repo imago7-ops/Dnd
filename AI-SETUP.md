@@ -1,8 +1,11 @@
-# Setting up AWS: the AI helper and website hosting
+# Setting up AWS: the AI helper, accounts and website hosting
 
 This guide moves Campaign Codex onto your Amazon Web Services (AWS) account:
 
-- **The AI helper** (Part C) is a small server that keeps your Claude and ChatGPT keys secret, checks each person's access code, logs every AI request (who, when, what, cost) and enforces a daily limit. One template file builds all of it.
+- **The AI helper** (Part C) is a small server that keeps your Claude and ChatGPT keys secret, checks each person's access code, logs every AI request (who, when, what, cost) and enforces a daily limit.
+- **Accounts** (also Part C) let people sign in with email and password so their characters and campaigns follow them to any device. One template file builds all of it.
+
+> **Already set up the AI helper before accounts existed?** Skip to **Part E** to add accounts to your existing stack (about 5 minutes).
 - **The website** (Part D) is hosted on AWS Amplify, which publishes your GitHub repo and updates on every change.
 
 Allow about 45 minutes. Do the parts in order. **Never paste API keys into a chat, the website or a GitHub file**; they only go into the AWS form in Part C.
@@ -45,6 +48,7 @@ You can use one or both.
    | AccessCodes | One code per person: `Josiah=owlbear-77, Sam=mimic-12`. The **name** is what shows in the activity log. Make codes hard to guess. |
    | AdminCode | A separate password (8+ characters) for viewing the AI activity log |
    | AllowedOrigins | Leave as `https://imago7-ops.github.io` for now (you'll add the Amplify address in Part D) |
+   | SignupCode | Optional invite code people must type to create an account. Leave empty to let anyone sign up. |
    | DailyLimit | Most AI requests per person per day (default 100) |
    | Models / MaxTokens | Leave the defaults |
 
@@ -56,7 +60,7 @@ You can use one or both.
    window.CODEX_AI_ENDPOINT = 'https://abc123.lambda-url.us-east-2.on.aws/';
    ```
 
-**What the template creates:** a Lambda function (the helper), its public address, a DynamoDB table for the activity log (entries kept 1 year), log files kept 30 days, and the minimum permissions to tie them together.
+**What the template creates:** a Lambda function (the helper), its public address, a DynamoDB table for the activity log (entries kept 1 year), an Amazon Cognito user pool for accounts, a second DynamoDB table for people's saved characters and campaigns (with backups switched on), a tiny function that checks the invite code, log files kept 30 days, and the minimum permissions to tie them together.
 
 ## Part D. Host the website on Amplify (10 min)
 
@@ -70,10 +74,28 @@ You can use one or both.
 
 Optional: once you're happy with Amplify, you can turn off GitHub Pages (repo **Settings** → **Pages**). Characters and campaigns are saved per browser **and per site address**, so use **Download** on the old site and **Upload** on the new one to move them.
 
+## Part E. Add accounts to an existing stack (5 min)
+
+Only needed if you created the `codex` stack before accounts were added (October 25, 2026). Your keys, codes and settings are kept.
+
+1. Get the new `server/aws/template.yaml` from your Dnd folder (or GitHub).
+2. CloudFormation → stack `codex` → **Update** (or **Update stack** → **Make a direct update**).
+3. Choose **Replace existing template** → **Upload a template file** → pick `template.yaml` → **Next**.
+4. Every setting keeps its current value. There's one new optional setting, **SignupCode**: an invite code people must enter to create an account. Leave it empty to let anyone sign up. → **Next** → **Next**.
+5. Tick **"I acknowledge that AWS CloudFormation might create IAM resources"** → **Submit**.
+6. Wait for **UPDATE_COMPLETE** (2–3 minutes).
+
+That's all: the site notices accounts are switched on by itself. Nothing to paste anywhere. Open the site and you'll see the sign-in screen.
+
 ## Using it
 
 - **Draft with AI:** open a campaign → **Draft with AI** on any section (or **Fill in the blanks with AI** on an entry). Enter your personal access code once; the browser remembers it.
-- **AI activity log:** Campaigns page → **AI activity** → enter the admin code. You'll see each request's time, who made it, what they asked for, which AI and model, whether it worked, and its estimated cost, plus wrong-code attempts and daily-limit hits. **Download as spreadsheet** saves it as a CSV.
+- **AI activity log:** Campaigns page → **AI activity** → enter the admin code. You'll see each request's time, who made it, what they asked for, which AI and model, whether it worked, and its estimated cost, plus wrong-code attempts and daily-limit hits. **Download as spreadsheet** saves it as a CSV. When the DM is signed in, the log's request also records their account.
+- **Accounts:** the first time someone opens the site they see **Sign in**, **Create an account** or **Continue without an account**. New accounts confirm their email with a 6-digit code. The account menu (their username in the top bar) has **Sync now**, **Change username**, **Sign out** and **Delete account**.
+  - Characters and campaigns save in the browser first, then to the account a few seconds later. Other devices pick up changes when you return to the tab, and every minute while it's open. If the same thing is edited on two devices at once, the most recent save wins.
+  - Signing in on a browser that already has work saved without an account asks whether to add it to the account or keep it separate.
+  - Signing out removes the account's data from that browser (it stays in the account).
+- **Managing accounts:** AWS console → **Cognito** → **User pools** → `codex-users` → **Users**. You can see who has signed up, and disable or delete an account. Saved data is in **DynamoDB** → **Tables** (the table whose name contains `UserDataTable`).
 
 ## Changing things later
 
@@ -82,6 +104,7 @@ Everything is changed the same way: CloudFormation → `codex` → **Update** �
 - Remove someone or change a leaked code: edit **AccessCodes**.
 - New API key: paste it into **AnthropicApiKey** / **OpenAIApiKey**.
 - Cheaper AI: set **AnthropicModel** to `claude-haiku-5-5` or **OpenAIModel** to `gpt-6-luna`.
+- Require (or change, or remove) an invite code for new accounts: edit **SignupCode**.
 
 ## What it costs
 
@@ -91,6 +114,8 @@ Everything is changed the same way: CloudFormation → `codex` → **Update** �
 | DynamoDB (activity log) | Pay per request, fractions of a cent | ~$0 |
 | CloudWatch logs (30 days) | 5 GB | $0 |
 | Amplify hosting | 15 GB served a month (first 12 months free) | ~$0 (the whole site is under 1 MB) |
+| Cognito accounts (Lite plan) | Thousands of monthly users free | $0 |
+| DynamoDB (saved characters and campaigns, with backups) | Pay per request and per GB stored | a few cents a month at most |
 | Claude / ChatGPT | Pay per use | about 1 cent per draft |
 
 ## Security notes
@@ -98,10 +123,12 @@ Everything is changed the same way: CloudFormation → `codex` → **Update** �
 - Your keys and codes are stored as the Lambda function's settings, encrypted by AWS. Anyone who can sign in to your AWS account can see them, so **keep MFA on** and don't share your AWS login.
 - The helper only answers your site's addresses and only for valid access codes, and each person has a daily limit. Wrong-code attempts appear in the activity log.
 - The activity log stores what people asked the AI for, so remind DMs not to type real-world private information into AI requests.
+- **Accounts:** passwords go straight to Amazon Cognito; neither the site's code nor your helper ever sees them. The helper only saves or returns data for a valid sign-in token, and only that person's own data. Anyone who can sign in to your AWS account can see account emails and saved characters and campaigns, which is one more reason to keep MFA on.
+- Verification emails come from `no-reply@verificationemail.com`. Cognito's built-in email sends a limited number per day (about 50), which is plenty for a group of friends.
 
 ## Removing it
 
-CloudFormation → `codex` → **Delete**. The activity log table is kept on purpose (so you don't lose history); delete it under **DynamoDB** → **Tables** if you want it gone.
+CloudFormation → `codex` → **Delete**. The activity log table, the saved-data table and the user pool are kept on purpose (so nobody loses their account by accident); delete them under **DynamoDB** → **Tables** and **Cognito** → **User pools** if you want them gone.
 
 ## If something goes wrong
 
@@ -113,3 +140,7 @@ CloudFormation → `codex` → **Delete**. The activity log table is kept on pur
 | "You've reached today's AI limit" | Wait until midnight UTC, or raise **DailyLimit**. |
 | "credit balance is too low" / "quota" | Add credit in that AI's billing page. |
 | "Claude/ChatGPT is not switched on" | That AI's key is empty in the stack settings. |
+| No sign-in screen appears | Accounts aren't on yet: do Part E. (Or you chose "Continue without an account" earlier; use **Sign in** in the top bar.) |
+| "That invite code is not right" | Check **SignupCode** in the stack settings. |
+| The verification email doesn't arrive | Check spam. Use **Send a new code**. If many people signed up the same day, Cognito's daily email limit may have been reached; try again tomorrow. |
+| "Not synced" in the account menu | Usually a dropped connection: changes are safe in the browser and sync once you're back online. Use **Sync now**. |

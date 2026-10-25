@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  Campaign Codex AI helper. Keeps your Claude and ChatGPT keys secret, checks each person's
-  access code, logs every AI request (who, when, what, cost) and enforces a daily limit.
+  Campaign Codex server. The AI helper keeps your Claude and ChatGPT keys secret, checks each
+  person's access code, logs every AI request and enforces a daily limit. Accounts (email and
+  password) let people reach their characters and campaigns from any device.
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -10,6 +11,8 @@ Metadata:
         Parameters: [AnthropicApiKey, OpenAIApiKey]
       - Label: { default: 'Who can use it' }
         Parameters: [AccessCodes, AdminCode, AllowedOrigins, DailyLimit]
+      - Label: { default: 'Accounts' }
+        Parameters: [SignupCode]
       - Label: { default: 'Models (the defaults are fine)' }
         Parameters: [AnthropicModel, OpenAIModel, MaxTokens]
 
@@ -43,6 +46,11 @@ Parameters:
     Default: 100
     MinValue: 1
     Description: Most AI requests each person can make per day (UTC).
+  SignupCode:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Optional invite code people must enter to create an account. Leave empty to let anyone sign up.
   AnthropicModel:
     Type: String
     Default: claude-sonnet-5-5
@@ -57,6 +65,9 @@ Parameters:
     MinValue: 100
     MaxValue: 4000
     Description: Longest reply allowed, in tokens.
+
+Conditions:
+  HasSignupCode: !Not [!Equals [!Ref SignupCode, '']]
 
 Resources:
   LogTable:
@@ -74,6 +85,115 @@ Resources:
       TimeToLiveSpecification: { AttributeName: expires, Enabled: true }
       SSESpecification: { SSEEnabled: true }
 
+  # ---------- Accounts ----------
+  UserDataTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      SSESpecification: { SSEEnabled: true }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub ${AWS::StackName}-users
+      UserPoolTier: LITE
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      UsernameConfiguration: { CaseSensitive: false }
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireNumbers: true
+          RequireLowercase: false
+          RequireUppercase: false
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+      EmailConfiguration: { EmailSendingAccount: COGNITO_DEFAULT }
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Your Campaign Codex code
+        EmailMessage: 'Your Campaign Codex verification code is {####}'
+      LambdaConfig:
+        PreSignUp: !GetAtt SignupCheckFunction.Arn
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: campaign-codex-site
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits: { AccessToken: minutes, IdToken: minutes, RefreshToken: days }
+
+  SignupCheckRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  SignupCheckLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-signup-check
+      RetentionInDays: 30
+
+  SignupCheckFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: SignupCheckLogs
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-signup-check
+      Description: Campaign Codex - checks the invite code when someone creates an account
+      Runtime: nodejs22.x
+      Handler: index.handler
+      MemorySize: 128
+      Timeout: 5
+      Role: !GetAtt SignupCheckRole.Arn
+      Environment:
+        Variables:
+          SIGNUP_CODE: !Ref SignupCode
+      Code:
+        ZipFile: |
+          'use strict';
+          exports.handler = async event => {
+            const want = (process.env.SIGNUP_CODE || '').trim();
+            const data = Object.assign({}, event.request.clientMetadata, event.request.validationData);
+            if (want && String(data.invite || '').trim() !== want) throw new Error('That invite code is not right.');
+            return event;
+          };
+
+  SignupCheckPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SignupCheckFunction
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # ---------- AI helper and account data ----------
   FunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -93,6 +213,13 @@ Resources:
               - Effect: Allow
                 Action: [dynamodb:PutItem, dynamodb:Query, dynamodb:UpdateItem]
                 Resource: !GetAtt LogTable.Arn
+        - PolicyName: account-data
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:Query, dynamodb:UpdateItem, dynamodb:DeleteItem]
+                Resource: !GetAtt UserDataTable.Arn
 
   FunctionLogs:
     Type: AWS::Logs::LogGroup
@@ -105,7 +232,7 @@ Resources:
     DependsOn: FunctionLogs
     Properties:
       FunctionName: !Sub ${AWS::StackName}-ai
-      Description: Campaign Codex AI helper
+      Description: Campaign Codex AI helper and account data
       Runtime: nodejs22.x
       Handler: index.handler
       MemorySize: 256
@@ -123,6 +250,10 @@ Resources:
           OPENAI_MODEL: !Ref OpenAIModel
           MAX_TOKENS: !Ref MaxTokens
           LOG_TABLE: !Ref LogTable
+          DATA_TABLE: !Ref UserDataTable
+          USER_POOL_ID: !Ref UserPool
+          USER_POOL_CLIENT_ID: !Ref UserPoolClient
+          INVITE_REQUIRED: !If [HasSignupCode, 'yes', 'no']
       Code:
         ZipFile: |
 __CODE__
@@ -153,6 +284,12 @@ Outputs:
   AIHelperAddress:
     Description: Paste this into js/ai-config.js (or send it to whoever maintains the site).
     Value: !GetAtt AIFunctionUrl.FunctionUrl
+  UserPoolId:
+    Description: The Cognito user pool holding people's accounts (Cognito > User pools in the console).
+    Value: !Ref UserPool
+  UserDataTable:
+    Description: DynamoDB table holding people's saved characters and campaigns.
+    Value: !Ref UserDataTable
   ActivityLogTable:
     Description: DynamoDB table holding the AI activity log.
     Value: !Ref LogTable

@@ -79,7 +79,8 @@ const Util = {
 const Store = (() => {
   // ?profile=name keeps separate saved data per tab (used for testing the party room).
   const profile = (/[?&]profile=([\w-]+)/.exec(location.search) || [])[1];
-  const KEY = 'campaign-codex.v1' + (profile ? `.${profile}` : '');
+  const suffix = profile ? `.${profile}` : '';
+  const KEY = 'campaign-codex.v1' + suffix;
   const defaults = () => ({
     role: null,                 // 'player' | 'dm'
     characters: [],
@@ -113,9 +114,19 @@ const Store = (() => {
   }
   window.addEventListener('beforeunload', () => { if (timer) flush(); });
 
+  /* Swap in a whole different saved state (signing in or out). */
+  function replace(next) {
+    state = Object.assign(defaults(), next || {});
+    flush();
+  }
+
   return {
     get state() { return state; },
     save,
     flush,
+    replace,
+    defaults,
+    KEY,
+    suffix,
   };
 })();

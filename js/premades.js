@@ -313,7 +313,7 @@ const Premades = (() => {
         encounters: [
           { name: 'Ambush on the Bridge of Sighs', location: 'Velloran', difficulty: 'Moderate', creatures: '4 Canal Thug\n1 Doppelganger Agent', terrain: 'Narrow bridge, canals on both sides, festival crowds.', tactics: 'The agent poses as a festival-goer and attacks from the crowd.' },
           { name: 'The archive heist', location: 'The Council Dome', difficulty: 'Moderate', creatures: '2 Doppelganger Agent', terrain: 'Shelves, ladders, alarm glyphs (DC 14 Arcana to disarm).', tactics: 'Two of the "clerks" are agents; they try to burn the signatures.' },
-          { name: 'The masquerade', location: 'Maskmaker\'s Row', difficulty: 'High', creatures: '1 Mother of Masks\n2 Doppelganger Agent\n3 Living Mask', terrain: 'Ballroom with a balcony and a workshop behind a mirror door.', tactics: 'She tries to replace a party member mid-dance with Steal Face.' },
+          { name: 'The masquerade', location: 'Maskmaker\'s Row', difficulty: 'High', creatures: '1 Mother of Masks\n2 Doppelganger Agent\n3 Living Mask', terrain: 'Ballroom with a balcony and a workshop behind a mirror door.', tactics: 'She tries to replace a party member mid-dance with Steal Face, then flees through the canals at half HP (the final fight comes later).' },
         ],
         items: [
           { name: 'Porcelain Mask of a Hundred Faces', rarity: 'Very rare', attunement: 'Yes', holder: 'Mother of Masks', description: 'Cast Disguise Self at will. Once per day, cast Detect Thoughts (save DC 15).' },
@@ -428,6 +428,161 @@ const Premades = (() => {
       },
     },
   ];
+
+  /*
+   * Session-by-session plans, and which sessions each entry matters in.
+   * tags: { 'Entry name': [session numbers] } become "Session N" tags on those entries.
+   */
+  const SESSIONS = {
+    hollowmere: {
+      plans: [
+        { title: 'Fog over Hollowmere', level: '1',
+          plan: 'Goal: hook the party and show them the fog is dangerous.\n1. Arrive at dusk; every door has a chalked name. Pell feeds the party and gossips at the Drowned Duck.\n2. Oda Brannick offers the job (50 gp and lodging). She stumbles over her husband\'s name.\n3. Visit the shrine; Sister Maren is evasive. The shrine key around her neck is a clue.\n4. Night: the fog rolls in. Fight on the jetty while saving two sleepwalking villagers.\n5. Morning: one villager no longer knows his family. Pell mentions Maren rowing to Gull Rock.',
+          prep: 'End on Pell\'s clue about Gull Rock. Reward: Oda pays 10 gp up front.' },
+        { title: 'The dark lighthouse', level: '1 to 2',
+          plan: 'Goal: discover the missing lens and the ghost.\n1. Row to Gull Rock; giant crabs ambush the landing.\n2. Search the keeper\'s cottage: the logbook\'s last entry mentions "the Keepers\' hymn".\n3. Climb the broken stair (DC 12 Athletics) to the lantern room: lens pried out from inside, hand-shaped scorch marks.\n4. Relight a candle to make Absalom Tey appear. He tells of "a girl with the shrine key".\n5. Optional: read the hymn book at the shrine to learn about the Fogmother\'s binding.',
+          prep: 'Level up to 2 at the end. The ghost gives Absalom\'s Lantern if the party promises to return the lens.' },
+        { title: 'The Sunken Chapel', level: '2',
+          plan: 'Goal: the truth, and the boss.\n1. Confront Sister Maren. Kindness (DC 13 Persuasion) or evidence gets a confession about her brother.\n2. She shows the flooded tunnel in the reed beds (hold breath, DC 10 Athletics).\n3. The nave: memory motes. Touching one shows a villager\'s lost memory (great roleplay moment).\n4. Fight the Fogmother and her wisps. Light is the key: carrying the lens near a light burns her.\n5. Find the locket belonging to Maren\'s brother.',
+          prep: 'If the party is struggling, let Maren arrive with a lantern and a blessing.' },
+        { title: 'Relight the lantern', level: '2 to 3',
+          plan: 'Goal: the payoff.\n1. Carry the lens back to Gull Rock and relight the lantern; Absalom finally rests.\n2. The beam sweeps the lake and every stolen memory returns. Oda remembers her husband\'s name.\n3. Give Maren her brother\'s locket and decide her fate (she wants to restart the Keepers).\n4. Village celebration at the Drowned Duck: rewards and hooks for the next adventure.',
+          prep: 'Level up to 3. Reward: 50 gp from Oda, a Potion of Healing from Maren.' },
+      ],
+      tags: {
+        'Hollowmere': [1, 4], 'Gull Rock Lighthouse': [2, 4], 'The Sunken Chapel': [3],
+        'Oda Brannick': [1, 4], 'Pell Underbough': [1], 'Sister Maren': [1, 3, 4], 'Absalom Tey': [2, 4],
+        'Keepers of the Flame': [2, 3], 'The Fogmother': [3],
+        'Fog Wisp': [1, 3], 'Giant Crab': [2], 'Memory-Lost Villager': [1],
+        'Lift the fog': [1, 4], 'The missing lens': [2, 4], 'Maren\'s bargain': [3, 4],
+        'Fog on the jetty': [1], 'Landing at Gull Rock': [2], 'The Fogmother\'s chapel': [3],
+        'Lens of the Lamplighter': [3, 4], 'Absalom\'s Lantern': [2],
+        'The memory fog': [1, 2, 3], 'Chalk names': [1, 4], 'The binding of the Fogmother': [2],
+      },
+    },
+    saltgrave: {
+      plans: [
+        { title: 'The salt town', level: '2',
+          plan: 'Goal: the job and the first descent.\n1. Saltgrave: white dust, worried families, a chapel list of twelve missing miners.\n2. Gida Stonejaw hires the party (100 gp + 20 gp per miner). Alder Venn hovers, polite and unhelpful.\n3. Enter the mine. Salt mites drop from the ceiling.\n4. Find Tobb with a broken leg. He saw "something with a crown and no face" leading the miners down.',
+          prep: 'Getting Tobb back up to town is a good place to end, or a reason for a short rest.' },
+        { title: 'Kobolds and the breach', level: '2',
+          plan: 'Goal: the kobolds and the way down.\n1. A barricade of minecarts: Snik\'s kobold scavengers.\n2. Fight or parley. Snik trades for food or something shiny, and has one rune-key (he doesn\'t know what it is).\n3. The kobolds warn of "the hungry deep".\n4. The breach: a perfectly round hole into older dwarven stonework.',
+          prep: 'Level up to 3 at the end of this session.' },
+        { title: 'Hall of Brindelvar', level: '3',
+          plan: 'Goal: the dwarven history and the rune-keys.\n1. The buried hall: toppled statues, murals of dwarves sealing something below.\n2. Brindel the Smith\'s ghost: relighting the forge melts the wax seal on the second rune-key.\n3. The vault door\'s guardians attack. Saying "Brindelvar" stops them (Brindel can tell them this).\n4. Brindel explains the salt ring and where the third key is.',
+          prep: 'If the party skipped Snik\'s key, Brindel can point back to the kobolds.' },
+        { title: 'The spider nest and the vault', level: '3 to 4',
+          plan: 'Goal: the third key and the vault.\n1. The spider nest: webs everywhere (flammable!). The key is inside a cocooned dwarf.\n2. Open the vault: salt-silver ingots, a +1 warhammer and gems.\n3. Brindel begs them to use the salt-silver on the seal below.',
+          prep: 'Level up to 4. Remind players that salt-silver is worth 50 gp per ingot; this sets up Venn\'s offer.' },
+        { title: 'The company\'s offer', level: '4',
+          plan: 'Goal: a moral choice and the descent.\n1. Alder Venn catches up with guards: 300 gp for the vault\'s contents, and "forget the miners".\n2. Whatever they choose, descend to the Temple of the Hollow King.\n3. Gaunts in the tunnels groan the names of family members; Gida (if present) recognizes her son\'s voice.\n4. The breathing pit: short rests here may fail.',
+          prep: 'If they sold the salt-silver, give them one last chance to steal it back or find a little more.' },
+        { title: 'The Hollow King', level: '4 to 5',
+          plan: 'Goal: the final battle.\n1. The temple: throne, pit, broken salt ring.\n2. Fight the Hollow King and his gaunts. Repairing the ring (an action with salt-silver) cripples his healing.\n3. If he falls before dawn, the gaunts become living, exhausted miners again.\n4. Return to Saltgrave: payment per miner saved, and Gida\'s thanks.',
+          prep: 'Level up to 5. Count the rescued miners for the reward. Decide what the company does next.' },
+      ],
+      tags: {
+        'Saltgrave': [1, 6], 'Level 1: The Salt Tunnels': [1, 2], 'Level 2: Hall of Brindelvar': [3, 4], 'Level 3: Temple of the Hollow King': [5, 6],
+        'Gida Stonejaw': [1, 5, 6], 'Alder Venn': [1, 5], 'Tobb': [1], 'Snik': [2], 'Brindel the Smith': [3, 4],
+        'Saltgrave Mining Company': [1, 5], 'The Hollow Court': [5, 6], 'The Hollow King': [6],
+        'Salt Mite': [1], 'Kobold Scavenger': [2], 'Dwarven Guardian': [3], 'Cave Spider': [4], 'Gaunt': [5, 6],
+        'Rescue the miners': [1, 6], 'The three rune-keys': [2, 3, 4], 'The company\'s offer': [5],
+        'Ceiling mites': [1], 'Kobold standoff': [2], 'The vault guardians': [3], 'Spider nest': [4], 'The hungry throne': [6],
+        'Crown of the Hollow King': [6], 'Salt-silver ingot': [4, 6], 'The breathing pit': [5, 6], 'Brindelvar\'s last stand': [3],
+      },
+    },
+    velloran: {
+      plans: [
+        { title: 'Day 1: The festival opens', level: '4',
+          plan: 'Goal: set the scene and the mystery.\n1. Velloran in full festival: masks, gondolas, music. Explain the masking rules.\n2. Councillor Seraphine Arlo hires the party privately: two councillors got her secret code phrase wrong.\n3. She gives festival passes, 500 gp promised, and a list of the seven councillors.\n4. Watch the council in session; Councillor Dace is suspiciously polite.',
+          prep: 'Hand out the list of councillors. Keep your own secret list of which are doubles.' },
+        { title: 'Day 2: Canals and contacts', level: '4',
+          plan: 'Goal: danger, and a new contact.\n1. Investigating draws attention: ambush on the Bridge of Sighs (thugs plus a disguised agent in the crowd).\n2. A clue on a thug leads to the Underquay.\n3. Meet Quill. Everything has a price: steal a ledger from the council archive.\n4. Captain Ren Otaru warns the party off; he\'s suspicious of adventurers.',
+          prep: 'Let them question a captured thug: "a lady in a white mask pays us".' },
+        { title: 'Day 3: The archive heist', level: '4 to 5',
+          plan: 'Goal: the heist.\n1. Plan the break-in to the Council Dome archive (alarm glyphs, DC 14 Arcana).\n2. Get Quill\'s ledger, and compare the councillors\' oath-sealed signatures: doubles can\'t copy them.\n3. Two "clerks" are agents who try to burn the signatures.\n4. Read about the Treaty of Ashes and who benefits.',
+          prep: 'Level up to 5 at the end. They should now know at least two councillors are fakes.' },
+        { title: 'Day 4: The flooded cell', level: '5',
+          plan: 'Goal: rescue the real Dace.\n1. Trade the ledger to Quill for Dace\'s location.\n2. Under the Underquay: a flooded cell, rising water, guards.\n3. The real Councillor Dace is rude, furious and grateful. He confirms the plot.\n4. He has seen the blank masks at House Ilvane.',
+          prep: 'Dace is living proof, but the doubles can claim he\'s the fake. Let the party worry about that.' },
+        { title: 'Day 5: The masquerade', level: '5',
+          plan: 'Goal: the villain revealed.\n1. Ysolde Ilvane\'s ball. Gorgeous, dangerous, full of living masks.\n2. Sneak into the workshop behind the mirror door: blank masks holding stolen memories.\n3. Ysolde tries to replace a party member mid-dance with Steal Face.\n4. Fight! She flees through the canals at half HP, leaving her doppelgangers behind.',
+          prep: 'Level up to 6 at the end. Use the masquerade encounter, but she escapes at half HP.' },
+        { title: 'Day 6: Gathering allies', level: '6',
+          plan: 'Goal: prepare for the vote.\n1. Bring proof to Captain Ren Otaru (the signatures, Dace). He becomes an ally.\n2. Ask the Thieves of the Tide for help: tunnels into the Council Dome.\n3. Warn the real councillors; one of them doesn\'t believe it.\n4. Plan for the final night.',
+          prep: 'Count allies: each one gives an advantage in the next session.' },
+        { title: 'Day 7: The vote', level: '6',
+          plan: 'Goal: stop the treaty.\n1. The final council session in the Council Dome; the public gallery is packed.\n2. Expose the doubles in public (signatures, Dace, Ren\'s watch).\n3. The doubles attack; chaos in the dome.\n4. The treaty is torn up, but Ysolde is missing.',
+          prep: 'If the party lacks proof, the vote passes and they must stop Ysolde to undo it.' },
+        { title: 'Unmasking', level: '6 to 7',
+          plan: 'Goal: the final battle.\n1. Track Ysolde to House Ilvane on Maskmaker\'s Row.\n2. Final fight with the Mother of Masks. Breaking her porcelain mask strips her powers.\n3. Return stolen memories from the blank masks.\n4. Festival finale: fireworks, unmasking at dawn, rewards from the council.',
+          prep: 'Level up to 7. Reward: 500 gp from Arlo and a council favor.' },
+      ],
+      tags: {
+        'Velloran': [1, 2], 'The Council Dome': [1, 3, 7], 'Maskmaker\'s Row': [5, 8], 'The Underquay': [2, 4],
+        'Councillor Seraphine Arlo': [1, 6, 8], 'Councillor Mattias Dace': [1, 3, 4], 'Ysolde Ilvane': [5, 8], 'Quill': [2, 4], 'Captain Ren Otaru': [2, 6, 7],
+        'The Velloran Council': [1, 6, 7], 'The Faceless': [5, 7, 8], 'Thieves of the Tide': [2, 6],
+        'Mother of Masks': [5, 8], 'Doppelganger Agent': [2, 3, 7, 8], 'Canal Thug': [2, 4], 'Living Mask': [5, 8],
+        'Seven days of masks': [1, 8], 'The flooded cell': [2, 4], 'Signatures don\'t lie': [3, 6, 7], 'The masquerade ball': [4, 5],
+        'Ambush on the Bridge of Sighs': [2], 'The archive heist': [3], 'The masquerade': [5],
+        'Porcelain Mask of a Hundred Faces': [8], 'Festival pass': [1],
+        'The Festival of Masks': [1], 'The Treaty of Ashes': [3, 7], 'Festival week': [1, 2, 3, 4, 5, 6, 7],
+      },
+    },
+    frostmarch: {
+      plans: [
+        { title: 'The ice line', level: '5',
+          plan: 'Goal: the stakes and the rules of survival.\n1. Brannock\'s Ford: the ice line visible from the walls; refugees from the north.\n2. Captain Isolde Varga recruits the party for the expedition. Pip Hollins explains supplies.\n3. Teach the cold rules (Constitution saves, Exhaustion) and the 14-day clock.\n4. Set out; the first night in a whiteout.',
+          prep: 'Start a tracker: days left, food, firewood. Give out cold-weather gear (or let them buy it).' },
+        { title: 'The Whispering Pines', level: '5',
+          plan: 'Goal: wonder and danger.\n1. The glass forest: trees chime, snow falls upward.\n2. Winter wolves attack the supply sledge.\n3. Discover frozen travelers who are still alive. Warming one takes an hour of fire.',
+          prep: 'Rescued travelers can join the expedition; one is a cleric.' },
+        { title: 'The Circle of the Long Night', level: '5 to 6',
+          plan: 'Goal: the truth about the winter.\n1. The frost druids find the party. Moraine tests them with riddles.\n2. She believes the winter is nature\'s judgment.\n3. Learn the lore of Verenne, the spring spirit, and her song.\n4. Persuading Moraine (or earning her respect) teaches them the song.',
+          prep: 'Level up to 6. The song unlocks the peaceful ending, so make learning it feel earned.' },
+        { title: 'Glimmerfall Pass', level: '6',
+          plan: 'Goal: the mountains.\n1. The narrow pass and the broken ice bridges.\n2. Meet Grisk the yeti elder: hostile at first, fair if respected.\n3. Grisk\'s bargain: drive the ice trolls off the bridges for a safe cave shortcut.\n4. Explore the abandoned dwarven waystation for shelter.',
+          prep: 'Days are running out; the shortcut saves 2 days.' },
+        { title: 'The bridge trolls', level: '6 to 7',
+          plan: 'Goal: a big fight on dangerous ground.\n1. Ice trolls under the bridges (fire is essential; Pip has oil).\n2. Falling is deadly; reward clever positioning.\n3. Grisk guides them through the yeti caves.',
+          prep: 'Level up to 7 at the end.' },
+        { title: 'The first expedition', level: '7',
+          plan: 'Goal: foreshadowing.\n1. Find the camp of last winter\'s expedition: frozen bodies, journals, a Firebrand cloak.\n2. Journals mention Edric, Isolde\'s brother, "walking toward the light at the Spire".\n3. Isolde opens up about her guilt.\n4. First sight of the Spire of Rime.',
+          prep: 'Give Isolde\'s locket to a player: it matters in the final fight.' },
+        { title: 'The Spire of Rime', level: '7',
+          plan: 'Goal: the climb.\n1. Climb the tower of blue ice; rime servants guard each level.\n2. Hazards: slick ramps, collapsing ice, freezing wind.\n3. Glimpse Edric, now the Warden\'s servant, who retreats upward.',
+          prep: 'Let them take one short rest near the top before the final fight.' },
+        { title: 'The Heart of Winter', level: '7 to 8',
+          plan: 'Goal: the ending.\n1. Fight the Rime Warden, its servants and Edric around the beating Heart.\n2. Isolde (or her locket) can reach Edric.\n3. Ending A: shatter the Heart and winter ends, but Verenne is gone.\n4. Ending B: sing Verenne\'s song to soothe the Heart; spring returns and Edric is freed.\n5. Return to Brannock\'s Ford as heroes.',
+          prep: 'Level up to 8. Reward: 1,000 gp from the lowland lords.' },
+      ],
+      tags: {
+        'Brannock\'s Ford': [1, 8], 'The Whispering Pines': [2, 3], 'Glimmerfall Pass': [4, 5], 'The Spire of Rime': [6, 7, 8],
+        'Captain Isolde Varga': [1, 6, 8], 'Pip Hollins': [1, 5], 'Moraine': [3], 'Grisk': [4, 5], 'Edric Varga': [6, 7, 8],
+        'The Expedition': [1], 'Circle of the Long Night': [3],
+        'The Rime Warden': [8], 'Winter Wolf': [2], 'Ice Troll': [5], 'Rime Servant': [7, 8],
+        'Shatter the Heart of Winter': [1, 8], 'Revive the frozen travelers': [2], 'Grisk\'s bargain': [4, 5], 'Verenne\'s song': [3, 8],
+        'Wolves in the snow': [2], 'The bridge trolls': [5], 'Heart of the Spire': [8],
+        'Shard of the Heart of Winter': [8], 'Firebrand cloak': [6],
+        'The deep freeze': [1, 2, 3, 4, 5, 6, 7], 'The creeping ice line': [1], 'The spring spirit Verenne': [3, 8],
+      },
+    },
+  };
+
+  // Fold the session plans and tags into each campaign.
+  CAMPAIGNS.forEach(c => {
+    const s = SESSIONS[c.key];
+    if (!s) return;
+    const overview = (c.sections.sessions || [])[0];
+    c.sections.sessions = [
+      ...(overview ? [{ ...overview, name: 'Campaign overview' }] : []),
+      ...s.plans.map((p, i) => ({ name: `Session ${i + 1}: ${p.title}`, level: p.level, plan: p.plan, prep: p.prep, tags: [`Session ${i + 1}`] })),
+    ];
+    Object.values(c.sections).flat().forEach(e => {
+      const nums = s.tags[e.name];
+      if (nums) e.tags = nums.map(n => `Session ${n}`);
+    });
+  });
 
   /* Official adventures a DM can run from their own copy. Names only: the
      contents belong to Wizards of the Coast. */
