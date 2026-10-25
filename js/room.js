@@ -19,6 +19,8 @@ const Room = (() => {
   const SESSION_KEY = 'campaign-codex.room';
 
   const listeners = new Set();
+  const mapListeners = new Set();   // battle map changes (guest)
+  const pingListeners = new Set();
   const s = {
     mode: null,        // 'host' | 'guest' | null
     status: 'idle',    // idle | connecting | open | reconnecting | ended | error
@@ -27,6 +29,7 @@ const Room = (() => {
     campaignId: null,  // host: which campaign this room belongs to
     code: '',
     view: null,        // guest: last snapshot from the DM
+    map: null,         // guest: the battle map as the DM shares it { base, tokens, mine, tiles }
     shareRolls: true,
   };
   let net = null;       // active transport handle
@@ -38,6 +41,18 @@ const Room = (() => {
 
   /* ---------- Small helpers ---------- */
   const emit = () => listeners.forEach(fn => fn());
+  const mapEmit = type => mapListeners.forEach(fn => fn(type));
+  const pingEmit = p => pingListeners.forEach(fn => fn(p));
+
+  /* A lasting id for this player (per browser and test profile), so their token and turn follow them across reconnects. */
+  function playerKey() {
+    const k = 'campaign-codex.player-key' + Store.suffix;
+    let v = '';
+    try { v = localStorage.getItem(k) || ''; } catch { /* storage blocked */ }
+    if (!v) { v = Util.uid() + Util.uid(); try { localStorage.setItem(k, v); } catch { /* ignore */ } }
+    return v;
+  }
+  const emptyMap = () => ({ base: null, tokens: [], mine: [], tiles: new Map() });
   const clip = (v, n) => String(v ?? '').slice(0, n);
   const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LEN);
 
@@ -219,9 +234,11 @@ const Room = (() => {
 
   function publicCombat() {
     const c = fight();
+    // Creatures standing in fog on the shared battle map stay off the players' turn order too.
+    const hidden = typeof Battlemap !== 'undefined' ? Battlemap.hiddenCombatants(s.campaignId) : new Set();
     return {
       started: c.started, round: c.round,
-      list: c.combatants.map(x => {
+      list: c.combatants.filter(x => !hidden.has(x.id)).map(x => {
         const pct = x.maxHp > 0 ? Util.clamp(x.hp / x.maxHp, 0, 1) : 1;
         const isEnemy = x.kind === 'enemy';
         let hpText;
@@ -250,8 +267,47 @@ const Room = (() => {
     if (s.mode !== 'host' || s.status !== 'open') return;
     clearTimeout(bcastTimer);
     bcastTimer = setTimeout(() => {
-      players.forEach(p => p.conn.send({ t: 'state', state: snapshot(p.id) }));
+      const mv = mapView();
+      players.forEach(p => { p.conn.send({ t: 'state', state: snapshot(p.id) }); sendMap(p, mv); });
     }, 80);
+  }
+
+  /* ---------- Battle map (host) ---------- */
+  function mapView() {
+    try { return Battlemap.hostView(s.campaignId); }
+    catch (e) { console.error(e); return null; }
+  }
+  /* Send a player what changed on the map: the squares they can see, the tokens in them, and picture tiles they don't have yet. */
+  function sendMap(p, mv) {
+    if (!mv) return;
+    const mapId = mv.base ? mv.base.id : null;
+    if (p.mapId !== mapId) { p.mapId = mapId; p.tiles.clear(); } // the player starts the new map with no tiles
+    if (p.mapBase !== mv.baseKey) {
+      p.mapBase = mv.baseKey;
+      // Every so often both sides forget picture tiles that are no longer in use (the fog moved on).
+      let prune = false;
+      if (p.tiles.size > mv.tiles.length + 40) {
+        const keep = new Set(mv.tiles.map(x => x.key));
+        p.tiles.forEach(k => { if (!keep.has(k)) p.tiles.delete(k); });
+        prune = true;
+      }
+      p.conn.send({ t: 'mapbase', base: mv.base, prune });
+    }
+    const mine = mv.mineFor(p.key);
+    const tk = mv.tokKey + '|' + mine.join(',');
+    if (p.mapTok !== tk) { p.mapTok = tk; p.conn.send({ t: 'maptok', tokens: mv.tokens, mine }); }
+    mv.tiles.forEach(tile => {
+      if (p.tiles.has(tile.key)) return;
+      p.tiles.add(tile.key);
+      Battlemap.tileData(tile.key).then(data => {
+        if (data && players.get(p.id) === p) p.conn.send({ t: 'tile', key: tile.key, data });
+        else if (!data) p.tiles.delete(tile.key);
+      }).catch(() => p.tiles.delete(tile.key));
+    });
+  }
+  function sharePing(ping) {
+    pingEmit(ping);
+    players.forEach(p => p.conn.send({ t: 'ping', ping }));
   }
 
   function combatChanged() {
@@ -278,6 +334,7 @@ const Room = (() => {
       ? Combat.add({ name: ch.name, kind: 'pc', initBonus: ch.initBonus, init: initTotal, hp: ch.hp.current, maxHp: ch.hp.max, ac: ch.ac }, s.campaignId)
       : Combat.add({ name: p.name, kind: 'pc', initBonus: 0, init: initTotal, hp: 0, maxHp: 0, ac: 10 }, s.campaignId);
     cb.playerId = p.id;
+    if (p.key) cb.playerKey = p.key;
     return cb;
   }
 
@@ -315,6 +372,9 @@ const Room = (() => {
       case 'hello': {
         p.name = clip(msg.name, 40).trim() || 'Player';
         p.character = sanitizeSummary(msg.character);
+        p.key = clip(msg.key, 40).replace(/[^\w-]/g, '');
+        // Back after a reconnect: their combat row and map token are theirs again.
+        if (p.key) fight().combatants.forEach(cb => { if (cb.playerKey === p.key) cb.playerId = p.id; });
         if (!p.greeted) { p.greeted = true; feedPush({ type: 'system', text: `${p.name} joined the room.` }); }
         break;
       }
@@ -336,6 +396,19 @@ const Room = (() => {
       case 'roll': {
         feedPush({ type: 'roll', from: p.character ? p.character.name : p.name, roll: rollSummary(msg.roll || {}) });
         break;
+      }
+      case 'mapmove': {
+        const err = Battlemap.playerMove(s.campaignId, p.key, clip(msg.id, 40), msg.x, msg.y);
+        if (err) p.conn.send({ t: 'maperr', text: err });
+        return; // a successful move saves, which shares it with everyone
+      }
+      case 'ping': {
+        const now = Date.now();
+        if (p.lastPing && now - p.lastPing < 500) return;
+        p.lastPing = now;
+        const ping = Battlemap.checkPing(s.campaignId, msg.x, msg.y, clip(msg.tokenId, 40));
+        if (ping) sharePing({ ...ping, name: clip(p.character ? p.character.name : p.name, 40) });
+        return;
       }
       case 'init': {
         if (!p.character) return;
@@ -362,7 +435,7 @@ const Room = (() => {
         emit();
       },
       connection(conn) {
-        const p = { id: conn.id, name: 'Player', character: null, conn, greeted: false };
+        const p = { id: conn.id, name: 'Player', character: null, conn, greeted: false, key: '', tiles: new Set(), mapId: null, mapBase: '', mapTok: '' };
         players.set(conn.id, p);
         conn.onData(msg => onHostData(p, msg));
         conn.onClose(() => {
@@ -373,6 +446,7 @@ const Room = (() => {
           emit();
         });
         conn.send({ t: 'state', state: snapshot(conn.id) });
+        sendMap(p, mapView());
       },
       error(code2) {
         if (s.mode !== 'host') return;
@@ -422,6 +496,8 @@ const Room = (() => {
         conn.onData(msg => {
           if (!msg || typeof msg !== 'object') return;
           if (msg.t === 'state') { s.view = msg.state; emit(); }
+          if (msg.t === 'mapbase' || msg.t === 'maptok' || msg.t === 'tile' || msg.t === 'maperr') onMapData(msg);
+          if (msg.t === 'ping' && msg.ping) pingEmit(msg.ping);
           if (msg.t === 'closed') { s.status = 'ended'; s.view = null; hostConn = null; net && net.close(); s.mode = null; saveSession(); s.mode = 'guest'; emit(); }
         });
         conn.onClose(() => {
@@ -448,7 +524,30 @@ const Room = (() => {
     if (!hostConn) return;
     const character = me.charId ? summary(me.charId) : null;
     lastSent = JSON.stringify(character);
-    hostConn.send({ t: 'hello', name: me.name, character });
+    hostConn.send({ t: 'hello', name: me.name, character, key: playerKey() });
+  }
+
+  /* Guest: the DM shared part of the battle map. */
+  function onMapData(msg) {
+    if (!s.map) s.map = emptyMap();
+    const m = s.map;
+    if (msg.t === 'mapbase') {
+      const b = msg.base && typeof msg.base === 'object' ? msg.base : null;
+      if (!b || !m.base || m.base.id !== b.id) { m.tiles = new Map(); m.tokens = []; m.mine = []; }
+      m.base = b;
+      if (msg.prune) {
+        const keep = new Set(b && b.image ? b.image.tiles.map(t => t.key) : []);
+        [...m.tiles.keys()].forEach(k => { if (!keep.has(k)) m.tiles.delete(k); });
+      }
+    } else if (msg.t === 'maptok') {
+      m.tokens = Array.isArray(msg.tokens) ? msg.tokens : [];
+      m.mine = Array.isArray(msg.mine) ? msg.mine : [];
+    } else if (msg.t === 'tile') {
+      if (typeof msg.data === 'string' && /^data:image\/(webp|jpeg|png);/.test(msg.data)) m.tiles.set(String(msg.key), msg.data);
+    } else if (msg.t === 'maperr') {
+      Util.toast(clip(msg.text, 120), 'error');
+    }
+    mapEmit(msg.t);
   }
 
   /* ---------- Public API ---------- */
@@ -479,7 +578,7 @@ const Room = (() => {
     const c = cleanCode(code);
     if (c.length !== CODE_LEN) { s.status = 'error'; s.error = `Room codes are ${CODE_LEN} characters long.`; s.mode = 'guest'; emit(); return; }
     me = { name: clip(name, 40).trim() || 'Player', charId: charId || null };
-    s.view = null;
+    s.view = null; s.map = null;
     s.shareRolls = true;
     attempts = 0;
     startJoining(c, false);
@@ -494,9 +593,10 @@ const Room = (() => {
     const handle = net;
     setTimeout(() => handle && handle.close(), 150);
     net = null; hostConn = null; players.clear();
-    s.mode = null; s.status = 'idle'; s.code = ''; s.view = null; s.error = ''; s.errorCode = ''; s.campaignId = null;
+    s.mode = null; s.status = 'idle'; s.code = ''; s.view = null; s.map = null; s.error = ''; s.errorCode = ''; s.campaignId = null;
     saveSession();
     emit();
+    mapEmit('left');
   }
 
   function chat(text) {
@@ -528,6 +628,19 @@ const Room = (() => {
   }
 
   function setShareRolls(v) { s.shareRolls = Boolean(v); saveSession(); emit(); }
+
+  /* Player: ask the DM to move my token. */
+  function mapMove(id, x, y) {
+    if (s.mode === 'guest' && hostConn) hostConn.send({ t: 'mapmove', id, x, y });
+  }
+  /* Anyone: flash a spot (or a creature) on the map for the whole table. */
+  function ping(x, y, tokenId) {
+    if (s.mode === 'guest' && hostConn) { hostConn.send({ t: 'ping', x, y, tokenId: tokenId || null }); return; }
+    if (s.mode === 'host') {
+      const p = Battlemap.checkPing(s.campaignId, x, y, tokenId);
+      if (p) sharePing({ ...p, name: 'DM', dm: true });
+    }
+  }
 
   /* Share dice rolls with the room. */
   Dice.listen(entry => {
@@ -570,7 +683,11 @@ const Room = (() => {
 
   return {
     get state() { return s; },
-    get players() { return [...players.values()].map(p => ({ id: p.id, name: p.name, character: p.character, inCombat: Boolean(linkedCombatant(p.id)) })); },
+    get players() { return [...players.values()].map(p => ({ id: p.id, key: p.key, name: p.name, character: p.character, inCombat: Boolean(linkedCombatant(p.id)) })); },
+    get mapView() { return s.map; },
+    onMap(fn) { mapListeners.add(fn); return () => mapListeners.delete(fn); },
+    onPing(fn) { pingListeners.add(fn); return () => pingListeners.delete(fn); },
+    mapMove, ping,
     get me() { return me; },
     feed: () => feedList(),
     snapshot,

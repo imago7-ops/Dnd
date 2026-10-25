@@ -158,6 +158,7 @@ const Party = (() => {
                 <button class="btn btn-ghost-danger" data-act="end">End room</button>
               </div>
             </header>
+            <div data-ref="bm"></div>
             <div class="room-grid">
               <div class="room-main">
                 <div class="room-actions">
@@ -185,6 +186,7 @@ const Party = (() => {
             </div>
           </div>`;
         Combat.mount(el.querySelector('[data-ref="tracker"]'), { embedded: true, campaignId: st.campaignId });
+        Battlemap.mount(el.querySelector('[data-ref="bm"]'), { isDM: true, campaignId: st.campaignId });
         wireChat();
         return;
       }
@@ -243,6 +245,7 @@ const Party = (() => {
               <button class="btn btn-ghost-danger" data-act="leave">Leave room</button>
             </div>
           </header>
+          <div data-ref="bm"></div>
           <div class="room-grid">
             <div class="room-main">
               <section class="panel room-card">
@@ -270,6 +273,7 @@ const Party = (() => {
             </aside>
           </div>
         </div>`;
+      Battlemap.mount(el.querySelector('[data-ref="bm"]'), { isDM: false });
       wireChat();
     }
 

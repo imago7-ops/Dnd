@@ -34,9 +34,20 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - The DM picks a campaign and clicks **Host this campaign's room**. Each campaign has its own 5-character code that stays the same every session. Players open **Party room**, type the code, choose their character and join.
 - **DM view:** the combat tracker, Add to combat / Remove for each player (initiative rolled for them), "Add everyone to combat", the party list with HP, AC and passive Perception, and table talk.
 - **Player view:** live turn order (enemy health shows as Healthy / Bloodied / Down), Roll initiative, "What the party knows" (the DM's Known entries without secret fields), the party list and table talk.
+- **Battle map:** see below.
 - **Table talk:** chat plus shared dice rolls. Players share rolls by default; the DM's rolls stay private unless they tick "Share my rolls".
 - Damage on a player's sheet updates the DM's tracker. Reloading reconnects automatically.
 - Connections go directly to the DM's browser using WebRTC via [PeerJS](https://peerjs.com/) and its free public broker, so the DM's tab must stay open while you play. Some strict networks block direct connections.
+
+### Battle map (in the party room)
+- **Make maps (DM):** each campaign keeps as many maps as you like. Draw on a square grid with Floor, Wall, Door, Difficult terrain and colors (water, grass, sand, lava, ice, wood, stone, magic, blood), or use Shapes for filled boxes, outlines, circles and lines. Undo takes back the last stroke. Or upload a picture of a map and draw on top of it.
+- **Pictures:** big pictures are shrunk (about 2000 pixels, compressed) so the whole campaign still fits in your account; Map settings shows how much room is left. Line the grid up with the picture's own squares with "Squares across", "Square size" and the arrow buttons. Each square is 5 feet unless you change it.
+- **Pick what players see:** "Show players this map" chooses the map on the players' screens; "Stop showing players" hides it.
+- **Fog of war:** players see only revealed squares. Use the Fog tool to reveal or hide with a brush or a box, or Reveal all / Hide all. Hidden squares, the parts of the picture under them and tokens standing in them are never sent to players' browsers, and creatures in fog are left off the players' turn order.
+- **Tokens:** "Add the party" places a token for every player in the room (each player can move their own), "Add everyone in combat" places the combat tracker's creatures, or name a token and tap where it goes. Tap a token to rename it, change its side or size (up to Gargantuan), choose which player moves it, hide it from players, add it to combat or remove it. Tokens show the tracker's names and health, and a gold ring marks whose turn it is.
+- **Players:** drag your own token to move it (the DM's browser checks the move: no moving into fog or walls), measure distances in feet with diagonals counting as one square (5-5-5), and ping a spot or a creature so everyone sees a brief highlight with your name. A long press also pings.
+- **Mouse and touch:** drag to pan, scroll or pinch to zoom, the ⤢ button fits the whole map. **Full screen** fills a phone screen with the map. On the DM's drawing tools, pan with two fingers (or the right mouse button, or hold Space).
+- Maps save with the campaign, so they sync to your account and come along in campaign downloads.
 
 ### Everyone
 - **Dice tray:** d4–d100, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can tap to roll again.
@@ -72,6 +83,7 @@ server/aws/template.yaml     one-click AWS CloudFormation template (built from i
 server/aws/build-template.py rebuilds template.yaml after editing index.js
 amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)
+js/battlemap.js    battle map: drawing, pictures, tokens, fog of war, and what players are sent
 js/room.js         party room connections (host, join, sync)
 js/party.js        party room page
 js/app.js          role picker, page routing, phone dice button
@@ -81,7 +93,8 @@ js/app.js          role picker, page routing, phone dice button
 
 - Voice or video chat in the party room.
 - Spell and monster lookups from the 5e SRD.
-- Maps and images in the campaign notebook.
+- Pictures in the campaign notebook (NPC portraits, handouts).
+- Lighting and line of sight on the battle map.
 - Online accounts so characters and campaigns sync across devices.
 
 ## Testing the party room on one computer
