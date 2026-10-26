@@ -52,6 +52,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - Maps save with the campaign, so they sync to your account and come along in campaign downloads.
 
 ### Everyone
+- **Personalize** (palette button in the top bar, or in the account menu): theme (Night, Forest, Ember or the light Parchment), accent color, text size, fonts, and reduce motion. Saved per browser, and with your account when you sign in.
 - **Dice tray:** d4–d100, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can tap to roll again.
 
 Everything saves automatically in your browser, and to your account if you're signed in. Without an account, data is per browser and per site address, so use Download/Upload to move characters or campaigns between devices.
@@ -69,6 +70,7 @@ Everything saves automatically in your browser, and to your account if you're si
 index.html         page shell, loads everything below
 css/styles.css     all styling (colors live in :root at the top; phone rules at the bottom)
 js/store.js        helpers + saving to localStorage
+js/look.js         Personalize: themes, accent colors, text size, fonts
 js/dice.js         dice engine and the dice tray
 js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasses
 js/creator.js      step-by-step character creator

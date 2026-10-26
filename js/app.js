@@ -21,6 +21,7 @@ const App = (() => {
     document.title = 'Campaign Codex';
     app.innerHTML = `
       <main class="welcome">
+        <div class="welcome-look">${Look.button()}</div>
         <div class="welcome-inner">
           <div class="brand brand-lg">${Dice.D20_SVG}<span>Campaign Codex</span></div>
           <h1>How are you joining the table?</h1>
@@ -62,6 +63,7 @@ const App = (() => {
           </nav>
           <div class="topbar-end">
             <a class="room-pill" data-ref="roomPill" href="#/room" hidden></a>
+            ${Look.button()}
             <span class="acct-slot" data-ref="acct"></span>
             <span class="role-pill role-${role}">${ROLE_NAME[role]}</span>
             <a class="link-btn" href="#/welcome">Switch role</a>

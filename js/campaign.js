@@ -456,7 +456,7 @@ const Campaign = (() => {
         </header>
         <div class="nb-sections" data-ref="sections"></div>
         <form class="nb-add-section" data-ref="addSection" autocomplete="off">
-          <input data-ref="newSection" placeholder="New section name, e.g. Gods, Ships, Rumors" aria-label="New section name">
+          <input data-ref="newSection" placeholder="New section name, e.g. gods, ships, rumors" aria-label="New section name">
           <button class="btn" type="submit">Add section</button>
         </form>
         <datalist id="dl-locations"></datalist>

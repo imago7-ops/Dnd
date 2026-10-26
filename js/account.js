@@ -164,7 +164,7 @@ const Account = (() => {
     if (typeof Campaign !== 'undefined') return Campaign.list(); // also moves very old saves into folders
     return (Store.state.campaigns = Store.state.campaigns || []);
   }
-  const prefsOf = s => ({ role: s.role || null, activeCharacterId: s.activeCharacterId || null, activeCampaignId: s.activeCampaignId || null });
+  const prefsOf = s => ({ role: s.role || null, activeCharacterId: s.activeCharacterId || null, activeCampaignId: s.activeCampaignId || null, look: s.look || {} });
 
   /* Everything that syncs, keyed "kind#id". */
   function currentDocs() {
@@ -650,6 +650,7 @@ const Account = (() => {
           <div class="acct-who"><b>${esc(session.username)}</b><span>${esc(session.email)}</span><span class="acct-status" data-status="${sync.status}">${esc(statusText())}</span></div>
           ${sync.status === 'expired' ? '<button data-acct="relogin">Sign in again</button>' : '<button data-acct="sync">Sync now</button>'}
           <button data-acct="rename">Change username</button>
+          <button data-acct="look" data-look>Personalize</button>
           <button data-acct="signout">Sign out</button>
           <button data-acct="delete" class="danger">Delete account…</button>
         </div></details>`;
