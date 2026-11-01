@@ -216,10 +216,8 @@ const LevelUp = (() => {
     const s = spellLines(x, cl, scores);
     let text = String(x.spells || '');
     if (!s) return text;
-    if (!/^Spell save DC:/m.test(text)) {
-      const block = [s.ability, s.dc, s.cantrips, s.prepared, s.slots].filter(Boolean).join('\n');
-      return text.trim() ? `${block}\n\n${text}` : `${block}\n`;
-    }
+    // Newer characters show these numbers live on the Spells tab, so only older notes get updated.
+    if (!/^Spell save DC:/m.test(text)) return text;
     const swap = (re, line) => {
       if (!line) return;
       if (re.test(text)) text = text.replace(re, line);

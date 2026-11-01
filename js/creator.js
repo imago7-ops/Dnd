@@ -187,7 +187,8 @@ const Creator = (() => {
     const pb = R.profBonus(L);
     const parts = [];
 
-    const casting = cl.caster || (ch.level >= 3 && (ch.subclass === 'Eldritch Knight' || ch.subclass === 'Arcane Trickster') ? { type: 'third', abil: 'int' } : null);
+    // Save DC, attack, slots and spell counts are shown live on the Spells tab (js/spellbook.js).
+    const casting = null;
     if (casting) {
       const abil = casting.abil;
       const m = modOf(scores[abil]);
@@ -224,7 +225,6 @@ const Creator = (() => {
       if (['Aasimar', 'Tiefling', 'Elf', 'Gnome'].includes(ch.species)) parts.push('Species spells use Intelligence, Wisdom or Charisma (your choice).');
       parts.push('');
     }
-    if (parts.length) parts.push('Spells known or prepared:');
     return parts.join('\n').trim() + (parts.length ? '\n' : '');
   }
 
@@ -295,6 +295,11 @@ const Creator = (() => {
 
     c.equipment = `From ${ch.className}: ${cl.equip}\nFrom ${ch.background}: ${bg.equip}\n\n(Each can be swapped for gold instead: check your book.)`;
     c.spells = spellsText(ch, scores);
+    // Spells granted by species go straight onto the Spells tab.
+    const granted = [];
+    if (ch.species === 'Aasimar') granted.push({ n: 'Light', p: 'a', src: 'Aasimar' });
+    if (ch.species === 'Tiefling') granted.push({ n: 'Thaumaturgy', p: 'a', src: 'Tiefling' });
+    c.spellbook = { list: granted, used: {}, arcana: {}, pactUsed: 0 };
     c.creation = { rules: '2024', ...JSON.parse(JSON.stringify(ch)) };
     return c;
   }

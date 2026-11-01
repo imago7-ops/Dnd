@@ -189,6 +189,50 @@ const Character = (() => {
     el.querySelectorAll(`[data-panel="${tab}"] textarea`).forEach(autoSize);
   }
 
+  /*
+   * Features & traits, readable: each class feature opens to a short description
+   * (js/feature-info.js), and species traits and feats show their text.
+   */
+  function featuresHTML(c) {
+    const text = String(c.features || '').trim();
+    if (!text) return '<p class="empty-line">No features yet. Use <b>Edit text</b> to add your class features, species traits and feats.</p>';
+    const look = name => (typeof FeatureInfo !== 'undefined' ? FeatureInfo.lookup(name, c.className, c.subclass) : '');
+    const item = (name, desc, cls = '') => desc
+      ? `<details class="feat-item ${cls}"><summary><span class="feat-name">${Util.esc(name)}</span></summary><p>${Util.esc(desc)}</p></details>`
+      : `<div class="feat-item plain ${cls}"><span class="feat-name">${Util.esc(name)}</span></div>`;
+    const out = [];
+    let list = [];
+    const flush = () => { if (list.length) { out.push(`<div class="feat-list">${list.join('')}</div>`); list = []; } };
+    text.split('\n').forEach(raw => {
+      const line = raw.trim();
+      if (!line) { flush(); return; }
+      const lvl = /^Level (\d+):\s*(.*)$/.exec(line);
+      if (lvl) {
+        const parts = [];
+        lvl[2].split(/;\s*/).forEach(chunk => {
+          const sub = /^([^:]+?):\s*(.+)$/.exec(chunk);
+          if (sub && (sub[1] === c.subclass || /Path|College|Domain|Circle|Oath|Patron|Sorcery|Warrior of|School|Master|Knight|Trickster|Stalker|Wanderer|Hunter|Champion|Assassin|Soulknife|Thief|Abjurer|Diviner|Evoker|Illusionist/.test(sub[1]))) {
+            sub[2].split(/,\s*/).forEach(n => parts.push(item(n, look(n), 'sub')));
+          } else parts.push(item(chunk, look(chunk)));
+        });
+        list.push(`<div class="feat-level"><span class="feat-lv">Level ${lvl[1]}</span><div class="feat-items">${parts.join('')}</div></div>`);
+        return;
+      }
+      const dash = /^-\s*(.+)$/.exec(line);
+      if (dash) {
+        const nd = /^([^:]{2,60}):\s+(.+)$/.exec(dash[1]);
+        if (nd && !/^\d/.test(nd[2])) list.push(item(nd[1].replace(/^Origin feat,\s*/, 'Feat: '), nd[2]));
+        else list.push(`<div class="feat-note">${Util.esc(dash[1])}</div>`);
+        return;
+      }
+      if (/\.$/.test(line) || line.length > 70) { list.push(`<div class="feat-note">${Util.esc(line)}</div>`); return; }
+      flush();
+      out.push(`<h4 class="feat-head">${Util.esc(line)}</h4>`);
+    });
+    flush();
+    return out.join('');
+  }
+
   function mountSheet(el, focusName = false) {
     const c = active();
     const chars = Store.state.characters;
@@ -344,8 +388,16 @@ const Character = (() => {
             </div>
             <div class="attack-list" data-ref="attacks">${attacksHTML(c)}</div>`)}
 
-          ${textPanel('spells', 'Spells', 'spells', 'Spell slots, cantrips, prepared spells…')}
-          ${textPanel('features', 'Features & traits', 'features', 'Class features, species traits, feats…')}
+          ${panel('spells', '<div data-ref="spellbook"></div>')}
+          ${panel('features', `
+            <div class="fp-head">
+              <h3 class="sub-head">Features &amp; traits</h3>
+              <button class="link-btn" data-action="edit-features" aria-pressed="false">Edit text</button>
+            </div>
+            <div class="feat-view" data-ref="featView">${featuresHTML(c)}</div>
+            <label class="fp-text feat-edit" data-ref="featEdit" hidden><span class="sr-only">Features and traits text</span>
+              <textarea data-bind="features" placeholder="Class features, species traits, feats…" rows="6">${Util.esc(c.features)}</textarea>
+            </label>`)}
           ${textPanel('profs', 'Proficiencies & languages', 'proficiencies', 'Armor, weapons, tools, languages…')}
           ${textPanel('gear', 'Equipment', 'equipment', 'Armor, weapons, gear, coin…')}
           ${textPanel('notes', 'Notes', 'notes', 'Backstory, allies, goals, session notes…')}
@@ -354,6 +406,7 @@ const Character = (() => {
 
     updateDerived(el, c);
     wire(el);
+    if (typeof Spellbook !== 'undefined') Spellbook.mount(el.querySelector('[data-ref="spellbook"]'), c);
     showTab(el, currentTab);
     if (focusName) el.querySelector('.char-name').focus();
   }
@@ -405,6 +458,7 @@ const Character = (() => {
     set('prof', Util.fmtMod(prof(c)));
     set('init', Util.fmtMod(initBonus(c)));
     set('passive', passivePerception(c));
+    if (typeof Spellbook !== 'undefined') Spellbook.updateStats(el.querySelector('[data-ref="spellbook"]'), c);
     const max = Math.max(1, Util.num(c.hp.max, 1));
     const pct = Util.clamp(Util.num(c.hp.current, 0) / max, 0, 1) * 100;
     const fill = el.querySelector('[data-out="hpfill"]');
@@ -490,6 +544,17 @@ const Character = (() => {
       }
       switch (btn.dataset.action) {
         case 'level-up': return changeLevel(el, c, Util.num(c.level, 1) + 1);
+        case 'edit-features': {
+          const editing = btn.getAttribute('aria-pressed') !== 'true';
+          btn.setAttribute('aria-pressed', String(editing));
+          btn.textContent = editing ? 'Done editing' : 'Edit text';
+          el.querySelector('[data-ref="featEdit"]').hidden = !editing;
+          const view = el.querySelector('[data-ref="featView"]');
+          view.hidden = editing;
+          if (editing) { const t = el.querySelector('[data-ref="featEdit"] textarea'); autoSize(t); t.focus(); }
+          else view.innerHTML = featuresHTML(c);
+          return;
+        }
         case 'new': return createNew(el);
         case 'upload': return upload(el);
         case 'download':

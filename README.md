@@ -16,6 +16,8 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - **Step-by-step character creator:** species, background, class, level and subclass, ability scores, then a name. It fills in the whole sheet: scores with background bonuses, saves, skills, HP, AC, speed, initiative, hit dice, starting attacks, species traits, class and subclass features by level, origin feats, proficiencies and languages, starting equipment, and spellcasting (save DC, attack, cantrips, prepared spells, slots). Everything stays editable. You can also start from a blank sheet or upload a saved character.
 - **Subclasses:** all 123 official ones (Player's Handbook 2024 plus Xanathar's, Tasha's, Sword Coast, Wildemount, Fizban's, Van Richten's, Bigby's, Dragonlance, Heroes of Faerûn and the 2014 core books), plus an "Other / homebrew" option.
 - **Sheet in folders:** Character info, Ability scores, Skills, Combat, Spells, Features & traits, Proficiencies, Equipment and Notes. Quick stats (HP, AC, initiative, speed, proficiency) stay visible above them. Tap any number to roll it. Less-used actions live in the **More** menu.
+- **Spells tab, laid out like the official spell sheet:** spellcasting class, ability, save DC and spell attack at the top; cantrips and each spell level with its slots (tick them off, Long rest / Short rest to restore; warlock Pact Magic and Mystic Arcanum included). Choose spells from your class list (363 spells from the SRD 5.2, with level, school, casting time, range, components, duration and a short summary), mark them prepared or always prepared, and use Cast, Hit and damage buttons. Add homebrew spells, and change slot numbers for multiclass characters.
+- **Features & traits explained:** every class feature and Player's Handbook subclass feature opens to a short description, so you don't have to look it up. Edit text switches back to the plain text.
 - **Level up or down:** click "Level up" or change the Level field. Choose average or rolled HP, an Ability Score Improvement or feat, and a subclass at level 3; everything that depends on level updates (HP including Constitution changes, hit dice, scores, AC, initiative, speed, attacks, class resources, features, spellcasting). Lowering the level undoes it.
 - Keep several characters and download them as backup files.
 
@@ -76,6 +78,10 @@ js/rules-2024.js   D&D 2024 rules data: species, backgrounds, classes, subclasse
 js/creator.js      step-by-step character creator
 js/levelup.js      level up / level down dialog
 js/character.js    player character sheet (folders)
+js/spellbook.js    Spells tab: slots, prepared spells, spell picker
+js/spell-list.js   SRD 5.2 spells, cantrips to level 3 (CC-BY-4.0)
+js/spell-list-more.js  SRD 5.2 spells, levels 4 to 9
+js/feature-info.js short descriptions of class and subclass features
 js/premades.js     Starter campaigns and the official adventure list
 js/premade-maps.js battle maps for the starter campaigns' encounters
 js/guide.js        campaign guide (session-by-session walkthrough)
