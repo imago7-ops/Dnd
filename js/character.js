@@ -36,7 +36,7 @@ const Character = (() => {
       hitDice: '1d8',
       deathSaves: { success: 0, fail: 0 },
       attacks: [{ id: Util.uid(), name: 'Unarmed strike', bonus: 2, damage: '1' }],
-      features: '', proficiencies: '', equipment: '', spells: '', notes: '',
+      features: '', customFeatures: '', proficiencies: '', equipment: '', spells: '', notes: '',
     };
   }
 
@@ -397,6 +397,9 @@ const Character = (() => {
             <div class="feat-view" data-ref="featView">${featuresHTML(c)}</div>
             <label class="fp-text feat-edit" data-ref="featEdit" hidden><span class="sr-only">Features and traits text</span>
               <textarea data-bind="features" placeholder="Class features, species traits, feats…" rows="6">${Util.esc(c.features)}</textarea>
+            </label>
+            <label class="fp-text feat-custom"><span class="fp-title">Homebrew and DM-given features</span>
+              <textarea data-bind="customFeatures" rows="3" aria-label="Homebrew and DM-given features">${Util.esc(c.customFeatures || '')}</textarea>
             </label>`)}
           ${textPanel('profs', 'Proficiencies & languages', 'proficiencies', 'Armor, weapons, tools, languages…')}
           ${textPanel('gear', 'Equipment', 'equipment', 'Armor, weapons, gear, coin…')}

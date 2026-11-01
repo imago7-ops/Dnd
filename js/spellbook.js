@@ -16,6 +16,21 @@ const Spellbook = (() => {
   const R = () => Rules;
   const ORD = ['Cantrips', '1st level', '2nd level', '3rd level', '4th level', '5th level', '6th level', '7th level', '8th level', '9th level'];
   const LIST_OF = { Bard: 'Bard', Cleric: 'Cleric', Druid: 'Druid', Paladin: 'Paladin', Ranger: 'Ranger', Sorcerer: 'Sorcerer', Warlock: 'Warlock', Wizard: 'Wizard' };
+  /* Popular, dependable picks for each class: marked with a star in the spell picker. */
+  const RECOMMENDED = {
+    Bard: ['Vicious Mockery', 'Minor Illusion', 'Mage Hand', 'Healing Word', 'Faerie Fire', 'Dissonant Whispers', 'Sleep', 'Invisibility', 'Suggestion', 'Heat Metal', 'Hold Person', 'Hypnotic Pattern', 'Dispel Magic', 'Fear', 'Polymorph', 'Greater Invisibility', 'Dimension Door', 'Animate Objects', 'Greater Restoration', 'Mass Cure Wounds', 'Irresistible Dance', 'Mass Suggestion', 'Forcecage', 'Teleport', 'Mind Blank', 'Feeblemind', 'Foresight', 'Power Word Heal'],
+    Cleric: ['Sacred Flame', 'Guidance', 'Toll the Dead', 'Bless', 'Healing Word', 'Guiding Bolt', 'Cure Wounds', 'Sanctuary', 'Spiritual Weapon', 'Aid', 'Lesser Restoration', 'Hold Person', 'Spirit Guardians', 'Revivify', 'Mass Healing Word', 'Dispel Magic', 'Banishment', 'Death Ward', 'Guardian of Faith', 'Greater Restoration', 'Raise Dead', 'Flame Strike', 'Heal', "Heroes' Feast", 'Resurrection', 'Plane Shift', 'Holy Aura', 'Mass Heal', 'Gate'],
+    Druid: ['Guidance', 'Produce Flame', 'Shillelagh', 'Starry Wisp', 'Healing Word', 'Entangle', 'Goodberry', 'Faerie Fire', 'Moonbeam', 'Pass without Trace', 'Heat Metal', 'Spike Growth', 'Call Lightning', 'Conjure Animals', 'Dispel Magic', 'Plant Growth', 'Polymorph', 'Wall of Fire', 'Freedom of Movement', 'Mass Cure Wounds', 'Greater Restoration', 'Wall of Stone', 'Heal', 'Sunbeam', 'Fire Storm', 'Regenerate', 'Animal Shapes', 'Sunburst', 'Shapechange', 'Foresight'],
+    Paladin: ['Bless', 'Divine Smite', 'Shield of Faith', 'Command', 'Heroism', 'Aid', 'Find Steed', 'Magic Weapon', 'Lesser Restoration', 'Revivify', 'Aura of Vitality', 'Dispel Magic', "Crusader's Mantle", 'Death Ward', 'Banishment', 'Aura of Life', 'Circle of Power', 'Destructive Wave', 'Greater Restoration'],
+    Ranger: ["Hunter's Mark", 'Goodberry', 'Cure Wounds', 'Ensnaring Strike', 'Hail of Thorns', 'Pass without Trace', 'Spike Growth', 'Lesser Restoration', 'Conjure Animals', 'Lightning Arrow', 'Conjure Barrage', 'Freedom of Movement', 'Conjure Woodland Beings', 'Swift Quiver', 'Conjure Volley', 'Tree Stride'],
+    Sorcerer: ['Fire Bolt', 'Sorcerous Burst', 'Mage Hand', 'Minor Illusion', 'Prestidigitation', 'Shield', 'Magic Missile', 'Chromatic Orb', 'Sleep', 'Misty Step', 'Scorching Ray', 'Hold Person', 'Mirror Image', 'Fireball', 'Counterspell', 'Haste', 'Hypnotic Pattern', 'Greater Invisibility', 'Polymorph', 'Banishment', 'Cone of Cold', 'Animate Objects', 'Telekinesis', 'Chain Lightning', 'Disintegrate', 'Teleport', 'Finger of Death', 'Sunburst', 'Dominate Monster', 'Wish', 'Meteor Swarm'],
+    Warlock: ['Eldritch Blast', 'Minor Illusion', 'Prestidigitation', 'Hex', 'Armor of Agathys', 'Protection from Evil and Good', 'Misty Step', 'Hold Person', 'Darkness', 'Suggestion', 'Counterspell', 'Hypnotic Pattern', 'Hunger of Hadar', 'Fly', 'Banishment', 'Dimension Door', 'Hold Monster', 'Scrying', 'Mass Suggestion', 'Circle of Death', 'Forcecage', 'Plane Shift', 'Dominate Monster', 'Glibness', 'Foresight', 'Power Word Kill'],
+    Wizard: ['Fire Bolt', 'Mage Hand', 'Minor Illusion', 'Prestidigitation', 'Ray of Frost', 'Shield', 'Magic Missile', 'Mage Armor', 'Find Familiar', 'Detect Magic', 'Sleep', 'Misty Step', 'Web', 'Hold Person', 'Invisibility', 'Fireball', 'Counterspell', 'Haste', 'Hypnotic Pattern', 'Fly', 'Polymorph', 'Greater Invisibility', 'Banishment', 'Dimension Door', 'Wall of Force', 'Animate Objects', 'Telekinesis', 'Chain Lightning', 'Disintegrate', 'Contingency', 'Forcecage', 'Teleport', 'Simulacrum', 'Maze', 'Mind Blank', 'Wish', 'Time Stop'],
+    'Eldritch Knight': ['Shocking Grasp', 'True Strike', 'Blade Ward', 'Shield', 'Magic Missile', 'Find Familiar', 'Misty Step', 'Mirror Image', 'Blur', 'Haste', 'Counterspell', 'Fly', 'Dimension Door'],
+    'Arcane Trickster': ['Mage Hand', 'Minor Illusion', 'Message', 'Shield', 'Disguise Self', 'Silent Image', 'Sleep', 'Invisibility', 'Misty Step', 'Mirror Image', 'Hypnotic Pattern', 'Counterspell', 'Fly', 'Greater Invisibility'],
+  };
+  const recommendedFor = k => new Set((k && (RECOMMENDED[k.className] || [])) || []);
+
   const THIRD_PREPARED = [0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13];
 
   const modOf = s => Math.floor((Util.num(s, 10) - 10) / 2);
@@ -347,7 +362,8 @@ const Spellbook = (() => {
       return top;
     })();
     const lists = k ? k.lists : [];
-    const st = { q: '', level: startLevel !== undefined && startLevel !== '' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false };
+    const st = { q: '', level: startLevel !== undefined && startLevel !== '' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false, recOnly: false };
+    const rec = recommendedFor(k);
     const has = name => b.list.some(e => e.n.toLowerCase() === name.toLowerCase());
 
     const host = document.createElement('div');
@@ -366,8 +382,9 @@ const Spellbook = (() => {
         if (!st.allClasses && !s.classes.some(x => lists.includes(x))) return false;
         if (!st.allLevels && s.level > maxSlot && s.level > 0) return false;
         if (q && !(`${s.name} ${s.school} ${s.summary}`.toLowerCase().includes(q))) return false;
+        if (st.recOnly && !rec.has(s.name)) return false;
         return true;
-      });
+      }).sort((a, b) => a.level - b.level || (rec.has(b.name) - rec.has(a.name)) || a.name.localeCompare(b.name));
     }
 
     function listHTML() {
@@ -376,7 +393,7 @@ const Spellbook = (() => {
       return `<ul class="sbp-list">${r.slice(0, 400).map(s => `<li>
         <label class="sbp-item ${has(s.name) ? 'on' : ''}">
           <input type="checkbox" data-pick="${esc(s.name)}" ${has(s.name) ? 'checked' : ''}>
-          <span class="sbp-main"><b>${esc(s.name)}</b> <span class="sbp-lvl">${s.level ? `Level ${s.level}` : 'Cantrip'} · ${esc(s.school)}${s.conc ? ' · C' : ''}${s.ritual ? ' · R' : ''}</span>
+          <span class="sbp-main"><b>${esc(s.name)}</b>${rec.has(s.name) ? ' <span class="sbp-rec" title="A popular, dependable pick for your class">★ Recommended</span>' : ''} <span class="sbp-lvl">${s.level ? `Level ${s.level}` : 'Cantrip'} · ${esc(s.school)}${s.conc ? ' · C' : ''}${s.ritual ? ' · R' : ''}</span>
             <span class="sbp-sum">${esc(s.summary)}</span></span>
         </label></li>`).join('')}</ul>`;
     }
@@ -396,6 +413,7 @@ const Spellbook = (() => {
             <div class="sbp-checks">
               ${lists.length ? `<label class="check-line"><input type="checkbox" data-ref="allc" ${st.allClasses ? 'checked' : ''}> Every class</label>` : ''}
               <label class="check-line"><input type="checkbox" data-ref="alll" ${st.allLevels ? 'checked' : ''}> Higher levels too</label>
+              ${rec.size ? `<label class="check-line"><input type="checkbox" data-ref="reco" ${st.recOnly ? 'checked' : ''}> ★ Recommended only</label>` : ''}
             </div>
           </div>
           <div data-ref="list">${listHTML()}</div>
@@ -406,7 +424,7 @@ const Spellbook = (() => {
               <button class="btn" type="submit">Add</button>
             </form></details>
         </div>
-        <footer class="modal-foot"><span class="foot-hint muted">Ticked spells are on your sheet. New ones start prepared while you have room.</span><button class="btn btn-primary" data-act="close">Done</button></footer>`;
+        <footer class="modal-foot"><span class="foot-hint muted">${rec.size ? '★ marks popular, dependable picks for your class, listed first. ' : ''}Ticked spells are on your sheet. New ones start prepared while you have room.</span><button class="btn btn-primary" data-act="close">Done</button></footer>`;
     }
 
     function refreshList() {
@@ -430,6 +448,7 @@ const Spellbook = (() => {
       const t = e.target;
       if (t.matches('[data-ref="allc"]')) { st.allClasses = t.checked; return refreshList(); }
       if (t.matches('[data-ref="alll"]')) { st.allLevels = t.checked; return render(); }
+      if (t.matches('[data-ref="reco"]')) { st.recOnly = t.checked; return refreshList(); }
       if (t.dataset.pick) {
         const name = t.dataset.pick;
         if (t.checked && !has(name)) {
