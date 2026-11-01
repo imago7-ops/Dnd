@@ -97,15 +97,55 @@ const Spellbook = (() => {
   const info = entry => (entry.custom ? null : SpellList.byName(entry.n));
   const levelOfEntry = e => { const s = info(e); return s ? s.level : Util.clamp(Util.num(e.lvl, 1), 0, 9); };
 
+  /*
+   * Spells that count toward the class limits. Always-prepared spells and spells with a
+   * source (a feat, species, magic item or the DM) don't count.
+   */
+  const counted = e => e.p !== 'a' && !e.src;
+  const isWizard = c => c.className === 'Wizard';
+
   function counts(c) {
     const b = book(c);
-    let cantrips = 0, prepared = 0;
+    let cantrips = 0, prepared = 0, known = 0;
     b.list.forEach(e => {
       const lv = levelOfEntry(e);
-      if (lv === 0) { if (e.p !== 'a') cantrips++; }
-      else if (e.p === 1 || e.p === true) prepared++;
+      if (!counted(e)) return;
+      if (lv === 0) cantrips++;
+      else {
+        known++;
+        if (e.p === 1 || e.p === true) prepared++;
+      }
     });
-    return { cantrips, prepared };
+    return { cantrips, prepared, known };
+  }
+
+  /* The class's limits: cantrips, spells you can have (wizards: spellbook size), prepared. */
+  function limits(c) {
+    const k = caster(c);
+    if (!k) return null;
+    return {
+      cantrips: k.cantrips || 0,
+      known: isWizard(c) ? 4 + 2 * levelOf(c) : k.prepared,
+      prepared: k.prepared,
+      wizard: isWizard(c),
+    };
+  }
+
+  /* Why this spell can't be added right now, or '' if it can. */
+  function blockReason(c, level) {
+    const lim = limits(c);
+    if (!lim) return '';
+    const n = counts(c);
+    if (level === 0) {
+      if (n.cantrips >= lim.cantrips) return lim.cantrips ? `You can have ${lim.cantrips} cantrips at this level. Remove one to choose another.` : 'Your class doesn\'t get cantrips.';
+      return '';
+    }
+    if (n.known >= lim.known) {
+      return lim.wizard
+        ? `Your spellbook holds ${lim.known} spells at this level (6 at level 1, +2 each level). Remove one to add another.`
+        : `You can have ${lim.known} prepared spells at this level. Remove one to choose another.`;
+    }
+    return '';
   }
 
   /* ---------- Rendering ---------- */
@@ -126,8 +166,11 @@ const Spellbook = (() => {
     const k = s.k;
     const parts = [];
     if (k) {
-      if (k.cantrips) parts.push(`<span class="${n.cantrips > k.cantrips ? 'over' : ''}">Cantrips <b>${n.cantrips}</b> of ${k.cantrips}</span>`);
-      parts.push(`<span class="${n.prepared > k.prepared ? 'over' : ''}">Prepared <b>${n.prepared}</b> of ${k.prepared}</span>`);
+      const lim = limits(c);
+      if (lim.cantrips) parts.push(`<span class="${n.cantrips > lim.cantrips ? 'over' : ''}">Cantrips <b>${n.cantrips}</b> of ${lim.cantrips}</span>`);
+      if (lim.wizard) parts.push(`<span class="${n.known > lim.known ? 'over' : ''}">Spellbook <b>${n.known}</b> of ${lim.known}</span>`);
+      parts.push(`<span class="${n.prepared > lim.prepared ? 'over' : ''}">Prepared <b>${n.prepared}</b> of ${lim.prepared}</span>`);
+      if (n.cantrips > lim.cantrips || n.known > lim.known || n.prepared > lim.prepared) parts.push('<span class="over">Over your limit: remove or unprepare spells (this can happen after lowering your level).</span>');
       if (k.slots && k.slots.pact) parts.push(`<span>Pact slots: level ${k.slots.slotLevel}, back on a short rest</span>`);
     } else {
       parts.push('<span>No spellcasting class. You can still add spells (from a feat or species) and set slots below.</span>');
@@ -291,6 +334,10 @@ const Spellbook = (() => {
           return redraw();
         case 'prep':
           if (entry.p === 'a') return Util.toast('This one is always prepared. Untick "Always prepared" in its details to change that.');
+          if (!(entry.p === 1 || entry.p === true)) {
+            const lim = limits(c);
+            if (lim && counted(entry) && counts(c).prepared >= lim.prepared) return Util.toast(`You can prepare ${lim.prepared} spells at this level. Unprepare one first.`, 'error');
+          }
           entry.p = entry.p === 1 || entry.p === true ? 0 : 1;
           save(); return redraw();
         case 'remove': {
@@ -320,8 +367,23 @@ const Spellbook = (() => {
         save(); return redraw();
       }
       if (!entry) return;
-      if (t.dataset.sb === 'always') { entry.p = t.checked ? 'a' : 1; save(); return redraw(); }
-      if (t.dataset.sb === 'src') { entry.src = t.value.trim().slice(0, 60); if (!entry.src) delete entry.src; save(); return redraw(); }
+      const wouldCount = next => {
+        const before = { ...entry };
+        Object.assign(entry, next);
+        if (!next.src && 'src' in next) delete entry.src;
+        const n = counts(c), lim = limits(c);
+        const over = lim && (n.cantrips > lim.cantrips || n.known > lim.known || n.prepared > lim.prepared);
+        if (over) { Object.keys(entry).forEach(x => delete entry[x]); Object.assign(entry, before); }
+        return !over;
+      };
+      if (t.dataset.sb === 'always') {
+        if (!wouldCount({ p: t.checked ? 'a' : 1 }) && !wouldCount({ p: t.checked ? 'a' : 0 })) { t.checked = !t.checked; return Util.toast('That would put you over your class limit. Remove a spell first.', 'error'); }
+        save(); return redraw();
+      }
+      if (t.dataset.sb === 'src') {
+        if (!wouldCount({ src: t.value.trim().slice(0, 60) })) { t.value = entry.src || ''; return Util.toast('Without a source this spell counts toward your class limit, and you\'re already at it.', 'error'); }
+        save(); return redraw();
+      }
       if (t.dataset.sb === 'note') { entry.note = t.value.slice(0, 1000); save(); }
     });
   }
@@ -362,7 +424,7 @@ const Spellbook = (() => {
       return top;
     })();
     const lists = k ? k.lists : [];
-    const st = { q: '', level: startLevel !== undefined && startLevel !== '' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false, recOnly: false };
+    const st = { q: '', level: startLevel !== undefined && startLevel !== '' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false, recOnly: false, bonus: false };
     const rec = recommendedFor(k);
     const has = name => b.list.some(e => e.n.toLowerCase() === name.toLowerCase());
 
@@ -387,12 +449,23 @@ const Spellbook = (() => {
       }).sort((a, b) => a.level - b.level || (rec.has(b.name) - rec.has(a.name)) || a.name.localeCompare(b.name));
     }
 
+    function headText() {
+      if (!k) return 'Pick any spells, for example from a feat or your species.';
+      const n = counts(c), lim = limits(c);
+      const bits = [`${lists.join(', ') || k.className} list${lists.length > 1 ? 's' : ''}, up to level ${maxSlot}`];
+      if (lim.cantrips) bits.push(`Cantrips ${n.cantrips} of ${lim.cantrips}${n.cantrips >= lim.cantrips ? ' (full)' : ''}`);
+      if (lim.wizard) bits.push(`Spellbook ${n.known} of ${lim.known}${n.known >= lim.known ? ' (full)' : ''}`);
+      bits.push(`${lim.wizard ? 'Prepared' : 'Spells'} ${lim.wizard ? n.prepared : n.known} of ${lim.prepared}${!lim.wizard && n.known >= lim.known ? ' (full)' : ''}`);
+      return bits.join(' · ');
+    }
+
     function listHTML() {
       const r = results();
+      const full = st.bonus ? { 0: false, 1: false } : { 0: Boolean(blockReason(c, 0)), 1: Boolean(blockReason(c, 1)) };
       if (!r.length) return '<p class="sb-empty">No spells match. Try another level, or tick "Every class".</p>';
       return `<ul class="sbp-list">${r.slice(0, 400).map(s => `<li>
-        <label class="sbp-item ${has(s.name) ? 'on' : ''}">
-          <input type="checkbox" data-pick="${esc(s.name)}" ${has(s.name) ? 'checked' : ''}>
+        <label class="sbp-item ${has(s.name) ? 'on' : ''} ${!has(s.name) && full[s.level ? 1 : 0] ? 'full' : ''}" ${!has(s.name) && full[s.level ? 1 : 0] ? `title="${esc(blockReason(c, s.level))}"` : ''}>
+          <input type="checkbox" data-pick="${esc(s.name)}" ${has(s.name) ? 'checked' : ''} ${!has(s.name) && full[s.level ? 1 : 0] ? 'disabled' : ''}>
           <span class="sbp-main"><b>${esc(s.name)}</b>${rec.has(s.name) ? ' <span class="sbp-rec" title="A popular, dependable pick for your class">★ Recommended</span>' : ''} <span class="sbp-lvl">${s.level ? `Level ${s.level}` : 'Cantrip'} · ${esc(s.school)}${s.conc ? ' · C' : ''}${s.ritual ? ' · R' : ''}</span>
             <span class="sbp-sum">${esc(s.summary)}</span></span>
         </label></li>`).join('')}</ul>`;
@@ -402,7 +475,7 @@ const Spellbook = (() => {
       const n = counts(c);
       body.innerHTML = `
         <header class="modal-head"><div><h2 id="sbp-title">Choose spells</h2>
-          <p class="muted">${k ? `${esc(lists.join(', ') || k.className)} list${lists.length > 1 ? 's' : ''}, up to level ${maxSlot}. Cantrips ${n.cantrips}${k.cantrips ? ` of ${k.cantrips}` : ''} · Prepared ${n.prepared} of ${k.prepared}.` : 'Pick any spells, for example from a feat or your species.'}</p></div>
+          <p class="muted" data-ref="sbpHead">${esc(headText())}</p></div>
           <button class="icon-btn" data-act="close" aria-label="Close">×</button></header>
         <div class="modal-body">
           <div class="sbp-tools">
@@ -414,6 +487,7 @@ const Spellbook = (() => {
               ${lists.length ? `<label class="check-line"><input type="checkbox" data-ref="allc" ${st.allClasses ? 'checked' : ''}> Every class</label>` : ''}
               <label class="check-line"><input type="checkbox" data-ref="alll" ${st.allLevels ? 'checked' : ''}> Higher levels too</label>
               ${rec.size ? `<label class="check-line"><input type="checkbox" data-ref="reco" ${st.recOnly ? 'checked' : ''}> ★ Recommended only</label>` : ''}
+              ${k ? `<label class="check-line" title="For spells from a feat (like Magic Initiate), your species, a magic item or your DM. They don't count toward your class limits."><input type="checkbox" data-ref="bonus" ${st.bonus ? 'checked' : ''}> Adding bonus spells (feat, species, item or DM)</label>` : ''}
             </div>
           </div>
           <div data-ref="list">${listHTML()}</div>
@@ -424,18 +498,21 @@ const Spellbook = (() => {
               <button class="btn" type="submit">Add</button>
             </form></details>
         </div>
-        <footer class="modal-foot"><span class="foot-hint muted">${rec.size ? '★ marks popular, dependable picks for your class, listed first. ' : ''}Ticked spells are on your sheet. New ones start prepared while you have room.</span><button class="btn btn-primary" data-act="close">Done</button></footer>`;
+        <footer class="modal-foot"><span class="foot-hint muted">${rec.size ? '★ marks popular, dependable picks for your class, listed first. ' : ''}You can pick up to your class's limit. Spells from a feat, species or your DM don't count once you give them a source on your sheet.</span><button class="btn btn-primary" data-act="close">Done</button></footer>`;
     }
 
     function refreshList() {
       body.querySelector('[data-ref="list"]').innerHTML = listHTML();
       const n = counts(c);
       const p = body.querySelector('.modal-head .muted');
-      if (p && k) p.textContent = `${lists.join(', ') || k.className} list${lists.length > 1 ? 's' : ''}, up to level ${maxSlot}. Cantrips ${n.cantrips}${k.cantrips ? ` of ${k.cantrips}` : ''} · Prepared ${n.prepared} of ${k.prepared}.`;
+      if (p) p.textContent = headText();
+      void n;
     }
 
     host.addEventListener('click', e => {
       if (e.target === host) return close();
+      const fullItem = e.target.closest('.sbp-item.full');
+      if (fullItem) return Util.toast(fullItem.getAttribute('title') || 'You are at your limit.', 'error');
       const btn = e.target.closest('button');
       if (!btn) return;
       if (btn.dataset.act === 'close') return close();
@@ -449,12 +526,19 @@ const Spellbook = (() => {
       if (t.matches('[data-ref="allc"]')) { st.allClasses = t.checked; return refreshList(); }
       if (t.matches('[data-ref="alll"]')) { st.allLevels = t.checked; return render(); }
       if (t.matches('[data-ref="reco"]')) { st.recOnly = t.checked; return refreshList(); }
+      if (t.matches('[data-ref="bonus"]')) { st.bonus = t.checked; if (t.checked) { st.allClasses = true; } return render(); }
       if (t.dataset.pick) {
         const name = t.dataset.pick;
         if (t.checked && !has(name)) {
           const sp = SpellList.byName(name);
-          const n = counts(c);
-          b.list.push({ n: name, p: sp && sp.level > 0 ? (k && n.prepared >= k.prepared ? 0 : 1) : 0 });
+          if (st.bonus) {
+            b.list.push({ n: name, p: sp && sp.level > 0 ? 1 : 0, src: 'Bonus spell' });
+          } else {
+            const why = blockReason(c, sp ? sp.level : 1);
+            if (why) { t.checked = false; return Util.toast(why, 'error'); }
+            const n = counts(c), lim = limits(c);
+            b.list.push({ n: name, p: sp && sp.level > 0 ? (lim && n.prepared >= lim.prepared ? 0 : 1) : 0 });
+          }
         } else if (!t.checked) {
           const i = b.list.findIndex(x => x.n.toLowerCase() === name.toLowerCase());
           if (i >= 0) b.list.splice(i, 1);
@@ -474,7 +558,10 @@ const Spellbook = (() => {
       if (has(name)) return Util.toast('That spell is already on your sheet.', 'error');
       const lvl = Number(f.elements.namedItem('lvl').value);
       const known = SpellList.byName(name);
-      b.list.push(known ? { n: known.name, p: known.level ? 1 : 0 } : { n: name, lvl, custom: true, p: lvl ? 1 : 0 });
+      const why = st.bonus ? '' : blockReason(c, known ? known.level : lvl);
+      if (why) return Util.toast(why, 'error');
+      const extra = st.bonus ? { src: 'Bonus spell' } : {};
+      b.list.push(known ? { n: known.name, p: known.level ? 1 : 0, ...extra } : { n: name, lvl, custom: true, p: lvl ? 1 : 0, ...extra });
       Store.save();
       f.reset();
       refreshList();

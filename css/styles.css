@@ -1701,3 +1701,5 @@ body.bm-lock .dice-fab { display: none; }
 }
 .sbp-rec { display: inline-block; align-self: flex-start; margin: 1px 0; padding: 0 8px; border-radius: 999px; background: var(--gold-soft); color: var(--gold); font-size: .76rem; font-weight: 700; white-space: nowrap; }
 .feat-custom { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.sbp-item.full { opacity: .5; cursor: not-allowed; }
+.sbp-item.full:hover { border-color: var(--line-soft); }
