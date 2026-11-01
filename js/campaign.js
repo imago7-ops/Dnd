@@ -708,7 +708,7 @@ const Campaign = (() => {
     function aiPrompt(sec, request, useContext, current) {
       const t = typeOf(sec);
       const extra = {
-        bosses: 'Make the stats, abilities and legendary actions fit the challenge rating and 5e conventions. Give the boss a clear motive and a weakness the party can discover.',
+        bosses: 'Make the stats, abilities and legendary actions fit the challenge rating and 5e conventions. Give the boss a clear motive and a weakness the party can discover. Keep every field short (under 60 words) so the whole reply fits.',
         monsters: 'Make AC, HP, ability scores and attacks fit the challenge rating and 5e conventions (attack bonus, damage dice and save DCs written out).',
         encounters: 'List creatures one per line with a count, like "3 Goblin". Balance it for the party described, or a typical party of four if none is given.',
         npcs: 'Give them a distinct voice and something they want from the party.',
@@ -718,7 +718,7 @@ const Campaign = (() => {
         'You help a Dungeon Master prepare a Dungeons & Dragons 5th edition campaign using the 2024 rules.',
         'Write original material in your own words. Do not copy text from published books.',
         'Keep it table-ready: concrete, vivid and brief. The DM will read it during play.',
-        'Reply with a single JSON object and nothing else.',
+        'Reply with a single JSON object and nothing else. Inside text values, write line breaks as \\n.',
       ].join(' ');
       const parts = [`Create one ${t.one} (${sec.label}).`];
       if (useContext) { const c = campaignContext(); if (c) parts.push(`\nCampaign details for consistency:\n${c}`); }

@@ -58,13 +58,62 @@ const AI = (() => {
   }
 
   /* Pull the first JSON object out of a reply, even if it's wrapped in a code block. */
+  /*
+   * Read the AI's JSON reply, forgiving the usual slips: code fences, line breaks typed
+   * straight into text, trailing commas, and a reply that was cut off before it finished
+   * (long entries like bosses can hit the length limit), in which case the finished fields are kept.
+   */
   function parseJSON(text) {
     const cleaned = String(text).replace(/```(?:json)?/gi, '');
     const start = cleaned.indexOf('{');
+    if (start < 0) throw new Error('The AI reply was not in the expected format. Try again.');
     const end = cleaned.lastIndexOf('}');
-    if (start < 0 || end <= start) throw new Error('The AI reply was not in the expected format. Try again.');
-    try { return JSON.parse(cleaned.slice(start, end + 1)); }
-    catch { throw new Error('The AI reply was not in the expected format. Try again.'); }
+    if (end > start) { try { return JSON.parse(cleaned.slice(start, end + 1)); } catch { /* repair below */ } }
+    const repaired = repairJSON(cleaned.slice(start));
+    try {
+      const out = JSON.parse(repaired.text);
+      if (out && typeof out === 'object' && !Array.isArray(out) && Object.keys(out).length) {
+        if (repaired.truncated) Object.defineProperty(out, '__truncated', { value: true });
+        return out;
+      }
+    } catch { /* fall through */ }
+    throw new Error('The AI reply was not in the expected format. Try again.');
+  }
+
+  function repairJSON(src) {
+    let out = '', inStr = false, esc = false, depth = 0, done = false;
+    const stack = [];
+    for (let i = 0; i < src.length && !done; i++) {
+      const ch = src[i];
+      if (inStr) {
+        if (esc) { out += ch; esc = false; continue; }
+        if (ch === '\\') { out += ch; esc = true; continue; }
+        if (ch === '"') { inStr = false; out += ch; continue; }
+        if (ch === '\n') { out += '\\n'; continue; }
+        if (ch === '\r') continue;
+        if (ch === '\t') { out += '\\t'; continue; }
+        out += ch;
+        continue;
+      }
+      if (ch === '"') { inStr = true; out += ch; continue; }
+      if (ch === '{' || ch === '[') { stack.push(ch === '{' ? '}' : ']'); depth++; out += ch; continue; }
+      if (ch === '}' || ch === ']') {
+        out = out.replace(/,\s*$/, '');
+        stack.pop(); depth--; out += ch;
+        if (depth === 0) done = true;
+        continue;
+      }
+      out += ch;
+    }
+    const truncated = !done;
+    if (truncated) {
+      if (esc) out = out.slice(0, -1);
+      if (inStr) out += '"';
+      // Drop a dangling key or a key without a value, then close everything that's open.
+      out = out.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/\{\s*"[^"]*"\s*:?\s*$/, '{').replace(/[,:]\s*$/, '');
+      while (stack.length) out += stack.pop();
+    }
+    return { text: out, truncated };
   }
 
   /* Keep only known fields, in the right shape. */
@@ -131,6 +180,7 @@ const AI = (() => {
         body.innerHTML = `${head()}<div class="modal-body">
           <section class="lu-section">
             <p class="detail-note">Drafted by ${esc(NAMES[provider] || provider)}${st.who ? ` for ${esc(st.who)}` : ''}. ${fill ? 'These go into the empty fields.' : 'It\'s added as Hidden, and you can edit everything after.'}</p>
+            ${st.truncated && rows ? '<p class="detail-note">The AI ran out of room before finishing, so the last part may be cut short or missing. You can add it yourself, or use "Fill in the blanks with AI" afterwards.</p>' : ''}
             ${rows ? `<dl class="ai-result">${rows}</dl>` : '<p>The AI had nothing to add. Try again with more detail.</p>'}
           </section></div>
           <footer class="modal-foot">
@@ -183,7 +233,9 @@ const AI = (() => {
         const meta = { ...(opts.meta || {}), action: fill ? 'fill' : 'draft', request: st.request };
         const res = await ask({ system, prompt, provider, code: s.code, meta });
         st.who = res.who;
-        st.result = clean(parseJSON(res.text), opts.fields);
+        const parsed = parseJSON(res.text);
+        st.result = clean(parsed, opts.fields);
+        st.truncated = Boolean(parsed.__truncated);
         if (fill) Object.keys(st.result).forEach(k => { if (String(opts.current[k] || '').trim()) delete st.result[k]; });
         st.phase = 'result';
       } catch (e) {

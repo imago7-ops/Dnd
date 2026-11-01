@@ -40,7 +40,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - Connections go directly to the DM's browser using WebRTC via [PeerJS](https://peerjs.com/) and its free public broker, so the DM's tab must stay open while you play. Some strict networks block direct connections.
 
 ### Battle map (in the party room)
-- **Make maps (DM):** each campaign keeps as many maps as you like. Draw on a square grid with Floor, Wall, Door, Difficult terrain and colors (water, grass, sand, lava, ice, wood, stone, magic, blood), or use Shapes for filled boxes, outlines, circles and lines. Undo takes back the last stroke. Or upload a picture of a map and draw on top of it.
+- **Make maps (DM):** each campaign keeps as many maps as you like. Draw on a square grid with Floor, Wall, Door and ground colors (water, grass, sand, lava, ice, wood, stone), plus see-through overlays that sit on top of the ground (difficult terrain, magic, blood, fire, darkness; "Clear overlays" removes them), or use Shapes for filled boxes, outlines, circles and lines. Undo takes back the last stroke. Or upload a picture of a map and draw on top of it.
 - **Pictures:** big pictures are shrunk (about 2000 pixels, compressed) so the whole campaign still fits in your account; Map settings shows how much room is left. Line the grid up with the picture's own squares with "Squares across", "Square size" and the arrow buttons. Each square is 5 feet unless you change it.
 - **Pick what players see:** "Show players this map" chooses the map on the players' screens; "Stop showing players" hides it.
 - **Fog of war:** players see only revealed squares. Use the Fog tool to reveal or hide with a brush or a box, or Reveal all / Hide all. Hidden squares, the parts of the picture under them and tokens standing in them are never sent to players' browsers, and creatures in fog are left off the players' turn order.
@@ -53,7 +53,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 
 ### Everyone
 - **Personalize** (palette button in the top bar, or in the account menu): theme (Night, Forest, Ember or the light Parchment), accent color, text size, fonts, and reduce motion. Saved per browser, and with your account when you sign in.
-- **Dice tray:** d4–d100, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next d20, crit and fumble highlighting, and a history you can tap to roll again.
+- **Dice tray:** d4–d100, custom rolls (`2d6+3`, `4d6kh3`, `2d20kl1`, `d%`), advantage/disadvantage for the next roll (any die or a custom roll: one die rolls twice and keeps the higher or lower; bigger rolls like 2d6+3 roll twice in full and keep the better or worse total), crit and fumble highlighting, and a history you can tap to roll again.
 
 Everything saves automatically in your browser, and to your account if you're signed in. Without an account, data is per browser and per site address, so use Download/Upload to move characters or campaigns between devices.
 

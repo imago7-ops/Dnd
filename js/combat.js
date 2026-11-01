@@ -168,17 +168,26 @@ const Combat = (() => {
       const s = st();
       const n = s.combatants.length;
       if (!n) return;
+      // Skip creatures that are out of the fight (0 HP). Player characters at 0 HP still get
+      // their turn, because they roll death saves.
+      const out = c => c.kind !== 'pc' && Util.num(c.maxHp, 0) > 0 && Util.num(c.hp, 0) <= 0;
       let i = s.combatants.findIndex(c => c.id === s.activeId);
-      if (i < 0) i = 0;
-      else {
-        i += dir;
-        if (i >= n) { i = 0; s.round++; }
-        if (i < 0) { i = s.round > 1 ? n - 1 : 0; if (s.round > 1) s.round--; }
+      const startRound = s.round;
+      if (i < 0) {
+        i = s.combatants.findIndex(c => !out(c));
+        if (i < 0) i = 0;
+      } else {
+        for (let step = 0; step < n; step++) {
+          i += dir;
+          if (i >= n) { i = 0; s.round++; }
+          if (i < 0) { if (s.round > 1) { i = n - 1; s.round--; } else { i = 0; break; } }
+          if (!out(s.combatants[i])) break;
+        }
+        if (out(s.combatants[i])) { s.round = startRound; return Util.toast('Everyone else is down.'); }
       }
       s.activeId = s.combatants[i].id;
       Store.save();
       render();
-      el.querySelector('.combatant.active')?.scrollIntoView({ block: 'nearest', behavior: Util.reducedMotion() ? 'auto' : 'smooth' });
     }
 
     ref('form').addEventListener('submit', e => {

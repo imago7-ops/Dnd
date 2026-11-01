@@ -44,9 +44,25 @@ const Dice = (() => {
     return terms;
   }
 
-  /* Roll without recording it (used for bulk initiative). */
+  /*
+   * Roll without recording it (used for bulk initiative).
+   * Advantage/disadvantage: a single die (1d20, 1d8…) is rolled twice and the higher/lower
+   * kept; anything bigger (2d6+3) is rolled twice in full and the better/worse total kept.
+   */
   function evaluate(expr, opts = {}) {
     const terms = parse(expr);
+    const mode = opts.mode === 'adv' || opts.mode === 'dis' ? opts.mode : null;
+    if (!mode) return evaluateTerms(terms, null);
+    const dice = terms.filter(t => t.type === 'dice');
+    if (dice.length === 1 && dice[0].count === 1 && !dice[0].keep) return evaluateTerms(terms, mode);
+    if (!dice.length) return evaluateTerms(terms, null);
+    const a = evaluateTerms(terms, null), b = evaluateTerms(terms, null);
+    const pickA = mode === 'adv' ? a.total >= b.total : a.total <= b.total;
+    const [kept, other] = pickA ? [a, b] : [b, a];
+    return { ...kept, mode, other: other.total };
+  }
+
+  function evaluateTerms(terms, singleMode) {
     let total = 0;
     let nat = null;
     let usedMode = null;
@@ -59,8 +75,8 @@ const Dice = (() => {
         return;
       }
       let { count, sides, keep, keepN } = t;
-      if (opts.mode && opts.mode !== 'normal' && sides === 20 && count === 1 && !keep && usedMode === null) {
-        count = 2; keep = opts.mode === 'adv' ? 'kh' : 'kl'; keepN = 1; usedMode = opts.mode;
+      if (singleMode && count === 1 && !keep && usedMode === null) {
+        count = 2; keep = singleMode === 'adv' ? 'kh' : 'kl'; keepN = 1; usedMode = singleMode;
       }
       const dice = Array.from({ length: count }, (_, i) => ({ v: rand(sides), i, kept: true }));
       if (keep) {
@@ -96,6 +112,7 @@ const Dice = (() => {
       parts: res.parts,
       nat: res.nat,
       mode: res.mode,
+      ...(res.other !== undefined ? { other: res.other } : {}),
       time: Date.now(),
     };
     // Advantage/disadvantage is a one-roll toggle.
@@ -108,6 +125,7 @@ const Dice = (() => {
   }
 
   function breakdownHTML(entry) {
+    const other = entry.other !== undefined ? ` <span class="bd-other">(other roll: ${entry.other})</span>` : '';
     return entry.parts.map((p, idx) => {
       const sign = p.sign < 0 ? '− ' : (idx ? '+ ' : '');
       if (p.kind === 'flat') return `<span class="bd-flat">${sign}${p.value}</span>`;
@@ -120,7 +138,7 @@ const Dice = (() => {
       }).join('');
       const name = `${p.count}d${p.sides}${p.keep ? p.keep + p.keepN : ''}`;
       return `<span class="bd-group">${sign}<span class="bd-name">${name}</span>${faces}</span>`;
-    }).join(' ');
+    }).join(' ') + other;
   }
 
   function modeNote(entry) {
@@ -144,7 +162,7 @@ const Dice = (() => {
           <div class="tray-break" data-ref="break">Click a die, or any number on your sheet.</div>
         </div>
 
-        <div class="tray-mode" role="radiogroup" aria-label="Next d20 roll">
+        <div class="tray-mode" role="radiogroup" aria-label="Next roll" title="Applies to your next roll: any die or a custom roll">
           <button role="radio" data-mode="dis">Disadvantage</button>
           <button role="radio" data-mode="normal">Normal</button>
           <button role="radio" data-mode="adv">Advantage</button>
@@ -236,10 +254,10 @@ const Dice = (() => {
         Store.save();
         renderMode();
       } else if (t.dataset.die) {
-        roll(`1d${t.dataset.die}`, `d${t.dataset.die}`, { mode: t.dataset.die === '20' ? Store.state.diceMode : 'normal' });
+        roll(`1d${t.dataset.die}`, `d${t.dataset.die}`);
       } else if (t.dataset.reroll) {
         const r = Store.state.rolls.find(x => x.id === t.dataset.reroll);
-        if (r) roll(r.expr.replace(/2d20k[hl]1/, '1d20'), r.label);
+        if (r) roll(r.expr, r.label, { mode: 'normal' });
       } else if (t.dataset.action === 'close-tray') {
         document.body.classList.remove('tray-open');
       } else if (t.dataset.action === 'clear') {

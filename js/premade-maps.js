@@ -8,7 +8,7 @@
  * Each map is drawn as text, one character per 5-foot square:
  *   ' ' nothing     .  floor        #  wall        +  door
  *   ~  water        "  grass        :  dirt/sand   ^  lava/fire    *  ice
- *   =  wood         o  stone        %  magic       b  blood
+ *   =  wood         o  stone        %  magic (see-through, on floor)   b  blood (see-through, on floor)
  * Difficult terrain: ,  floor   &  grass   x  snow/ice   -  shallow water   ;  dirt   r  rocks
  *   P  where the party starts (the squares around it start revealed)
  *   A–Z (not P) creatures, listed in `tokens`. Several of the same letter are numbered in
@@ -18,7 +18,7 @@
 const PremadeMaps = (() => {
   const CODE = {
     ' ': ['.', 0], '.': ['f', 0], '#': ['w', 0], '+': ['d', 0],
-    '~': ['1', 0], '"': ['2', 0], ':': ['3', 0], '^': ['4', 0], '*': ['5', 0], '=': ['6', 0], 'o': ['7', 0], '%': ['8', 0], 'b': ['9', 0],
+    '~': ['1', 0], '"': ['2', 0], ':': ['3', 0], '^': ['4', 0], '*': ['5', 0], '=': ['6', 0], 'o': ['7', 0], '%': ['f', 2], 'b': ['f', 4],
     ',': ['f', 1], '&': ['2', 1], 'x': ['5', 1], '-': ['1', 1], ';': ['3', 1], 'r': ['7', 1],
   };
 
@@ -403,7 +403,7 @@ const PremadeMaps = (() => {
         if (ch === 'P') { starts.push({ x, y }); ch = def.under; }
         else if (def.tokens[ch]) { found.push({ ch, x, y }); ch = def.tokens[ch].on || def.under; }
         const [t, d] = CODE[ch] || CODE[' '];
-        terrain += t; diff += String(d);
+        terrain += t; diff += d.toString(32);
       }
     });
     m.terrain = terrain; m.diff = diff;

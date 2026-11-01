@@ -21,16 +21,25 @@ const Battlemap = (() => {
   const TILE = 512;                  // players get the picture in tiles of this many image pixels
 
   /* ---------- Terrain ---------- */
-  // One character per square. '.' empty, f floor, w wall, d door, 1-9 colors. Difficult terrain is a separate layer.
+  // One character per square. '.' empty, f floor, w wall, d door, 1-7 ground colors.
+  // Overlays sit on top of the ground and stay see-through. They're a separate layer (`diff`): one
+  // base-32 digit per square whose bits say which overlays it has, so several can stack.
   const COLORS = {
-    1: ['Water', '#2d5e85'], 2: ['Grass', '#3b6a36'], 3: ['Dirt and sand', '#94784b'], 4: ['Lava and fire', '#a8432c'],
-    5: ['Ice', '#7fb0c0'], 6: ['Wood', '#6a4a2e'], 7: ['Stone', '#5d6170'], 8: ['Magic', '#6a4b8c'], 9: ['Blood', '#7a2730'],
+    1: ['Water', '#2d5e85'], 2: ['Grass', '#3b6a36'], 3: ['Dirt and sand', '#94784b'], 4: ['Lava', '#a8432c'],
+    5: ['Ice', '#7fb0c0'], 6: ['Wood', '#6a4a2e'], 7: ['Stone', '#5d6170'],
+  };
+  const OVERLAYS = {
+    x: ['Difficult terrain', 1, 'hatch'], m: ['Magic', 2, '#a77de0'], b: ['Blood', 4, '#a3242f'],
+    z: ['Fire', 8, '#f07a2a'], k: ['Darkness', 16, '#05060a'],
   };
   const BRUSHES = [
-    ['f', 'Floor', '#343a4b'], ['w', 'Wall', '#0c0e14'], ['d', 'Door', '#7a5532'], ['x', 'Difficult terrain', 'hatch'],
+    ['f', 'Floor', '#343a4b'], ['w', 'Wall', '#0c0e14'], ['d', 'Door', '#7a5532'],
     ...Object.entries(COLORS).map(([k, [n, c]]) => [k, n, c]),
+    ...Object.entries(OVERLAYS).map(([k, [n, , c]]) => [k, n, c, 'overlay']),
+    ['c', 'Clear overlays', 'erase-fx'],
     ['.', 'Eraser', 'erase'],
   ];
+  const bits = ch => parseInt(ch, 32) || 0;
   const KIND_COLOR = { pc: '#5cbfae', ally: '#7ea6e8', enemy: '#dd6352', npc: '#e3b654' };
   const KIND_NAME = { pc: 'Player character', ally: 'Ally', enemy: 'Enemy', npc: 'NPC' };
   const SIZES = [[1, 'Medium or smaller (1 square)'], [2, 'Large (2×2)'], [3, 'Huge (3×3)'], [4, 'Gargantuan (4×4)']];
@@ -67,7 +76,17 @@ const Battlemap = (() => {
     m.ft = Util.clamp(Util.num(m.ft, 5), 1, 100);
     m.grid = m.grid !== false;
     m.terrain = fixStr(m.terrain, n, '.', '.fwd1-9');
-    m.diff = fixStr(m.diff, n, '0', '01');
+    m.diff = fixStr(m.diff, n, '0', '0-9a-v');
+    // Older maps painted magic (8) and blood (9) as ground; they're see-through overlays on floor now.
+    if (/[89]/.test(m.terrain)) {
+      let t = '', d = '';
+      for (let i = 0; i < n; i++) {
+        const ch = m.terrain[i];
+        if (ch === '8' || ch === '9') { t += 'f'; d += (bits(m.diff[i]) | (ch === '8' ? 2 : 4)).toString(32); }
+        else { t += ch; d += m.diff[i]; }
+      }
+      m.terrain = t; m.diff = d;
+    }
     if (!m.fog || typeof m.fog !== 'object') m.fog = { on: true, rev: '' };
     m.fog.on = m.fog.on !== false;
     m.fog.rev = fixStr(m.fog.rev, n, '0', '01');
@@ -461,12 +480,37 @@ const Battlemap = (() => {
         ctx.globalAlpha = 1;
       }
     }
+    // Overlays: see-through tints and marks, so the ground (or picture) underneath shows.
+    for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
+      const b = bits(v.diff[y * cols + x]);
+      if (!(b & 30)) continue;
+      if (b & 16) { ctx.globalAlpha = 0.38; ctx.fillStyle = OVERLAYS.k[2]; ctx.fillRect(x, y, 1, 1); }
+      if (b & 2) {
+        ctx.globalAlpha = 0.26; ctx.fillStyle = OVERLAYS.m[2]; ctx.fillRect(x, y, 1, 1);
+        ctx.globalAlpha = 0.75;
+        [[0.28, 0.3], [0.7, 0.42], [0.42, 0.74]].forEach(([dx, dy]) => {
+          ctx.beginPath(); ctx.moveTo(x + dx, y + dy - 0.07); ctx.lineTo(x + dx + 0.05, y + dy); ctx.lineTo(x + dx, y + dy + 0.07); ctx.lineTo(x + dx - 0.05, y + dy); ctx.closePath(); ctx.fill();
+        });
+      }
+      if (b & 8) {
+        ctx.globalAlpha = 0.22; ctx.fillStyle = OVERLAYS.z[2]; ctx.fillRect(x, y, 1, 1);
+        ctx.globalAlpha = 0.7;
+        [[0.3, 0.78, 0.16], [0.66, 0.7, 0.2]].forEach(([dx, dy, h]) => {
+          ctx.beginPath(); ctx.moveTo(x + dx - 0.09, y + dy); ctx.quadraticCurveTo(x + dx, y + dy - h * 2.4, x + dx + 0.09, y + dy); ctx.closePath(); ctx.fill();
+        });
+      }
+      if (b & 4) {
+        ctx.globalAlpha = 0.5; ctx.fillStyle = OVERLAYS.b[2];
+        [[0.4, 0.45, 0.2], [0.66, 0.62, 0.12], [0.3, 0.7, 0.08]].forEach(([dx, dy, r]) => { ctx.beginPath(); ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2); ctx.fill(); });
+      }
+      ctx.globalAlpha = 1;
+    }
     // Difficult terrain: amber hatching
-    ctx.strokeStyle = white && !v.image ? 'rgba(176,112,0,.9)' : 'rgba(227,182,84,.6)';
+    ctx.strokeStyle = white && !v.image ? 'rgba(176,112,0,.75)' : 'rgba(227,182,84,.55)';
     ctx.lineWidth = Math.max(px * 1.2, 0.04);
     ctx.beginPath();
     for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) {
-      if (v.diff[y * cols + x] !== '1') continue;
+      if (!(bits(v.diff[y * cols + x]) & 1)) continue;
       for (let k = 0.25; k < 2; k += 0.5) {
         const ax = x + Math.max(0, k - 1), ay = y + Math.min(1, k), bx = x + Math.min(1, k), by = y + Math.max(0, k - 1);
         ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
@@ -652,7 +696,7 @@ const Battlemap = (() => {
   /* ---------- Page section ---------- */
   const TOOLS_DM = [
     ['move', 'Move', 'Drag tokens to move them, or drag the map to look around. Tap a token to edit it.'],
-    ['draw', 'Draw', 'Paint squares with the brush. Difficult terrain goes on top of what is already there.'],
+    ['draw', 'Draw', 'Paint squares with the brush. Overlays (difficult terrain, magic, blood, fire, darkness) go on top of what is already there and stay see-through. Clear overlays removes just them.'],
     ['shape', 'Shapes', 'Drag from one square to another to draw the shape with the brush.'],
     ['fog', 'Fog', 'Players only see revealed squares. Paint or drag a box to reveal or hide.'],
     ['tokens', 'Tokens', 'Add tokens for the party, for everyone in combat, or one at a time.'],
@@ -857,9 +901,9 @@ const Battlemap = (() => {
     }
 
     function brushRow() {
-      return `<div class="bm-brushes" role="group" aria-label="Brush">${BRUSHES.map(([k, n, c]) => `
+      return `<div class="bm-brushes" role="group" aria-label="Brush">${BRUSHES.map(([k, n, c, o]) => `
         <button class="bm-brush ${ui.brush === k ? 'on' : ''}" data-brush="${k}" title="${n}" aria-label="${n}" aria-pressed="${ui.brush === k}">
-          <span class="sw ${c === 'hatch' ? 'sw-hatch' : c === 'erase' ? 'sw-erase' : ''} ${k === 'd' ? 'sw-door' : ''}" ${c.startsWith('#') ? `style="background:${c}"` : ''}></span>
+          <span class="sw ${c === 'hatch' ? 'sw-hatch' : c === 'erase' ? 'sw-erase' : c === 'erase-fx' ? 'sw-erase sw-erase-fx' : ''} ${k === 'd' ? 'sw-door' : ''} ${o === 'overlay' && c !== 'hatch' ? 'sw-overlay' : ''}" ${c.startsWith('#') ? `style="${o === 'overlay' ? `--o:${c}` : `background:${c}`}"` : ''}></span>
           <span class="bm-brush-name">${n}</span></button>`).join('')}</div>`;
     }
 
@@ -1060,7 +1104,8 @@ const Battlemap = (() => {
       cells.forEach(({ x, y }) => {
         if (x < 0 || y < 0 || x >= m.cols || y >= m.rows) return;
         const i = y * m.cols + x;
-        if (brush === 'x') m.diff = setAt(m.diff, i, '1');
+        if (OVERLAYS[brush]) m.diff = setAt(m.diff, i, (bits(m.diff[i]) | OVERLAYS[brush][1]).toString(32));
+        else if (brush === 'c') m.diff = setAt(m.diff, i, '0');
         else if (brush === '.') { m.terrain = setAt(m.terrain, i, '.'); m.diff = setAt(m.diff, i, '0'); }
         else m.terrain = setAt(m.terrain, i, brush);
       });

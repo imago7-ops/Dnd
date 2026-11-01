@@ -1588,3 +1588,7 @@ body.bm-lock .dice-fab { display: none; }
 .look-check input { width: 18px; height: 18px; accent-color: var(--accent); }
 .welcome { position: relative; }
 .welcome-look { position: absolute; top: 16px; right: 16px; }
+.bd-other { color: var(--faint); font-size: .86em; margin-left: 4px; }
+.bm-brush .sw-overlay { background: linear-gradient(45deg, #343a4b 50%, #5d6170 50%); position: relative; overflow: hidden; }
+.bm-brush .sw-overlay::after { content: ''; position: absolute; inset: 0; background: var(--o); opacity: .55; }
+.bm-brush .sw-erase-fx { background: linear-gradient(135deg, transparent 45%, var(--violet) 45% 55%, transparent 55%); }
