@@ -174,7 +174,7 @@ const Party = (() => {
                 </section>
                 <section class="panel room-card feed-card">
                   <h2>Table talk</h2>
-                  <ol class="feed" data-ref="feed"></ol>
+                  <div class="feed-wrap"><ol class="feed" data-ref="feed"></ol><button class="feed-new" data-ref="feedNew" hidden>New messages ↓</button></div>
                   ${chatBox(Room.state.shareRolls, 'Share my rolls with the party')}
                 </section>
                 <section class="panel room-card">
@@ -255,9 +255,9 @@ const Party = (() => {
                 </div>
                 <div data-ref="combat"></div>
               </section>
-              <section class="panel room-card">
+              <section class="panel room-card known-card">
                 <h2>What the party knows</h2>
-                <div data-ref="known"></div>
+                <div class="known-box" data-ref="known"></div>
               </section>
             </div>
             <aside class="room-side">
@@ -267,7 +267,7 @@ const Party = (() => {
               </section>
               <section class="panel room-card feed-card">
                 <h2>Table talk</h2>
-                <ol class="feed" data-ref="feed"></ol>
+                <div class="feed-wrap"><ol class="feed" data-ref="feed"></ol><button class="feed-new" data-ref="feedNew" hidden>New messages ↓</button></div>
                 ${chatBox(Room.state.shareRolls, 'Share my rolls with the party')}
               </section>
             </aside>
@@ -283,6 +283,7 @@ const Party = (() => {
       form.addEventListener('submit', e => {
         e.preventDefault();
         const input = el.querySelector('[data-ref="chatText"]');
+        followNext = true;
         Room.chat(input.value);
         input.value = '';
         input.focus();
@@ -293,9 +294,40 @@ const Party = (() => {
     function setText(ref, text) { const n = el.querySelector(`[data-ref="${ref}"]`); if (n) n.textContent = text; }
     function setHTML(ref, html) { const n = el.querySelector(`[data-ref="${ref}"]`); if (n && n.innerHTML !== html) n.innerHTML = html; }
 
-    function scrollFeed() {
+    /*
+     * Redraw the chat without yanking anyone's scroll position: it only follows new messages
+     * if you were already at the bottom (or just sent one). Otherwise a "New messages" button appears.
+     */
+    let feedKey = '', followNext = false;
+    function updateFeed(items, myName) {
       const f = el.querySelector('[data-ref="feed"]');
-      if (f) f.scrollTop = f.scrollHeight;
+      if (!f) return;
+      const html = feedHTML(items, myName);
+      const last = items[items.length - 1];
+      const key = last ? `${items.length}|${last.time}|${last.from}|${last.text || ''}|${last.roll ? last.roll.total : ''}` : '0';
+      const first = !f.dataset.ready;
+      const atBottom = f.scrollHeight - f.scrollTop - f.clientHeight < 48;
+      const top = f.scrollTop;
+      if (f.innerHTML !== html) f.innerHTML = html;
+      const isNew = key !== feedKey;
+      feedKey = key;
+      f.dataset.ready = '1';
+      const btn = el.querySelector('[data-ref="feedNew"]');
+      if (first || followNext || (atBottom && isNew)) {
+        f.scrollTop = f.scrollHeight;
+        followNext = false;
+        if (btn) btn.hidden = true;
+      } else {
+        f.scrollTop = atBottom ? f.scrollHeight : top;
+        if (isNew && !atBottom && btn) btn.hidden = false;
+      }
+      if (!f.dataset.wired) {
+        f.dataset.wired = '1';
+        f.addEventListener('scroll', () => {
+          if (btn && f.scrollHeight - f.scrollTop - f.clientHeight < 48) btn.hidden = true;
+        });
+        btn?.addEventListener('click', () => { f.scrollTo({ top: f.scrollHeight, behavior: Util.reducedMotion() ? 'auto' : 'smooth' }); btn.hidden = true; });
+      }
     }
 
     function update() {
@@ -330,9 +362,7 @@ const Party = (() => {
         if (addAll) addAll.disabled = !ps.some(p => !p.inCombat);
         const known = Campaign.publicKnown(st.campaignId).reduce((n, sec) => n + sec.entries.length, 0);
         setText('knownCount', known ? `Players can see ${known} known entr${known > 1 ? 'ies' : 'y'} from your campaign.` : 'Nothing from your campaign is marked Known yet.');
-        const before = el.querySelector('[data-ref="feed"]')?.innerHTML;
-        setHTML('feed', feedHTML(Room.feed().slice(-100), 'DM'));
-        if (el.querySelector('[data-ref="feed"]')?.innerHTML !== before) scrollFeed();
+        updateFeed(Room.feed().slice(-100), 'DM');
         el.querySelector('.room')?.classList.toggle('is-error', st.status === 'error');
         const nc = el.querySelector('[data-act="new-code"]');
         if (nc) nc.hidden = st.errorCode !== 'taken';
@@ -346,10 +376,7 @@ const Party = (() => {
       setHTML('party', partyHTML(v.players, v.you));
       setHTML('combat', playerCombatHTML(v.combat, v.you));
       setHTML('known', knownHTML(v.known));
-      const before = el.querySelector('[data-ref="feed"]')?.innerHTML;
-      const myName = Room.me ? Room.me.name : '';
-      setHTML('feed', feedHTML(v.feed, myName));
-      if (el.querySelector('[data-ref="feed"]')?.innerHTML !== before) scrollFeed();
+      updateFeed(v.feed, Room.me ? Room.me.name : '');
     }
 
     el.addEventListener('click', e => {
@@ -384,7 +411,6 @@ const Party = (() => {
 
     off = Room.on(render);
     render();
-    scrollFeed();
   }
 
   return { mount };

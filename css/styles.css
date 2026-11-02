@@ -827,7 +827,7 @@ a.btn-primary { color: var(--accent-ink); }
   padding: 2px 14px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); color: var(--accent-hi);
 }
 
-.room-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
+.room-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 0.8fr); gap: 18px; align-items: start; }
 .room-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .room-side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; }
 .room-card { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -861,8 +861,15 @@ a.btn-primary { color: var(--accent-ink); }
 .btn:disabled { opacity: .5; cursor: default; }
 .pm-hp { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; margin-top: 6px; font-size: .84rem; }
 
-.feed-card { max-height: calc(100vh - 260px); }
-.feed { list-style: none; margin: 0; padding: 0 2px 0 0; overflow-y: auto; min-height: 140px; max-height: 360px; display: flex; flex-direction: column; gap: 6px; }
+.feed-card { }
+.feed { list-style: none; margin: 0; padding: 0 2px 0 0; overflow-y: auto; height: 420px; display: flex; flex-direction: column; gap: 6px; }
+.feed-wrap { position: relative; }
+.feed-new {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+  padding: 5px 14px; border-radius: 999px; border: 1px solid var(--accent); background: var(--panel-2); color: var(--accent-hi);
+  font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--shadow) 70%, transparent);
+}
+.known-box { height: 420px; overflow-y: auto; padding-right: 4px; }
 .feed-empty, .feed-system { color: var(--faint); font-size: .86rem; font-style: italic; }
 .feed-chat { padding: 6px 10px; border-radius: var(--r); background: var(--bg); }
 .feed-chat.from-dm { border-left: 3px solid var(--gold); }
@@ -1703,3 +1710,6 @@ body.bm-lock .dice-fab { display: none; }
 .feat-custom { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .sbp-item.full { opacity: .5; cursor: not-allowed; }
 .sbp-item.full:hover { border-color: var(--line-soft); }
+@media (max-width: 860px) {
+  .feed, .known-box { height: auto; max-height: 55vh; min-height: 200px; }
+}
