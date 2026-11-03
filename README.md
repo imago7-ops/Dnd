@@ -96,6 +96,7 @@ server/aws/build-template.py rebuilds template.yaml after editing index.js
 amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)
 js/battlemap.js    battle map: drawing, pictures, tokens, fog of war, and what players are sent
+js/feature-info-more.js short descriptions of subclass features from other books
 js/maps-dialog.js  battle maps opened from the DM's campaign page (prep before the room)
 js/room.js         party room connections (host, join, sync)
 js/party.js        party room page

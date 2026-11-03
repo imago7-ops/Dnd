@@ -570,5 +570,11 @@ const FeatureInfo = (() => {
     return '';
   }
 
-  return { lookup, hasSubclass: s => Boolean(SUBCLASSES[s]) };
+  /* More subclasses (other books) are added from js/feature-info-more.js. */
+  function extend(more, shared = {}) {
+    Object.entries(more).forEach(([sub, feats]) => { SUBCLASSES[sub] = { ...(SUBCLASSES[sub] || {}), ...feats }; });
+    Object.entries(shared).forEach(([n, d]) => { if (!SHARED[n]) SHARED[n] = d; });
+  }
+
+  return { lookup, extend, hasSubclass: s => Boolean(SUBCLASSES[s]) };
 })();
