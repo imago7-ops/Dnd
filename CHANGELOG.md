@@ -3,8 +3,6 @@
 Every update to Campaign Codex, newest first. Times are US Central.
 "Who" is the person who asked for the change and the one who wrote it. The full code history, with exact changes for each entry, is on GitHub under **Commits**.
 
-**Version numbers:** the first number is a major milestone (1.x is everything before the battle map; 2.x starts with the battle map; the site owner decides when the next one begins). The second number is a new feature, and the third is a fix or small tweak.
-
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
 | When | Version | Who | What changed |
