@@ -5,7 +5,7 @@ This guide moves Campaign Codex onto your Amazon Web Services (AWS) account:
 - **The AI helper** (Part C) is a small server that keeps your Claude and ChatGPT keys secret, checks each person's access code, logs every AI request (who, when, what, cost) and enforces a daily limit.
 - **Accounts** (also Part C) let people sign in with email and password so their characters and campaigns follow them to any device. One template file builds all of it.
 
-> **Already set up the AI helper before accounts existed?** Skip to **Part E** to add accounts to your existing stack (about 5 minutes).
+> **Already set up the AI helper?** Part E adds accounts and Part F lets players upload photos of character sheets; each is a 5-minute update to your existing stack.
 - **The website** (Part D) is hosted on AWS Amplify, which publishes your GitHub repo and updates on every change.
 
 Allow about 45 minutes. Do the parts in order. **Never paste API keys into a chat, the website or a GitHub file**; they only go into the AWS form in Part C.
@@ -86,6 +86,18 @@ Only needed if you created the `codex` stack before accounts were added (October
 6. Wait for **UPDATE_COMPLETE** (2–3 minutes).
 
 That's all: the site notices accounts are switched on by itself. Nothing to paste anywhere. Open the site and you'll see the sign-in screen.
+
+## Part F. Let players upload character sheets (5 min)
+
+Needed once, so the AI can read photos, scans and PDFs of character sheets (added November 3, 2026). Fillable PDF sheets work without this; they're read in the browser. Your keys, codes and settings are kept.
+
+1. Get the new `server/aws/template.yaml` from your Dnd folder (or GitHub).
+2. CloudFormation → stack `codex` → **Update** → **Replace existing template** → **Upload a template file** → pick `template.yaml` → **Next**.
+3. Every setting keeps its current value. → **Next** → **Next**.
+4. Tick **"I acknowledge that AWS CloudFormation might create IAM resources"** → **Submit**.
+5. Wait for **UPDATE_COMPLETE** (1–2 minutes).
+
+Then give each player who wants to upload photos their own access code: CloudFormation → `codex` → **Update** → **Use existing template** → add them to **AccessCodes** (for example `Josiah=owlbear-77, Sam=mimic-12, Rowan=gnome-40`). Each upload is one AI request in the activity log and counts toward that person's daily limit. Reading a sheet costs a few cents with Claude. PDFs that need the AI are read by Claude only; ChatGPT can read photos.
 
 ## Using it
 

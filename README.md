@@ -14,6 +14,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 
 ### Player
 - **Step-by-step character creator:** species, background, class, level and subclass, ability scores, then a name. It fills in the whole sheet: scores with background bonuses, saves, skills, HP, AC, speed, initiative, hit dice, starting attacks, species traits, class and subclass features by level, origin feats, proficiencies and languages, starting equipment, and spellcasting (save DC, attack, cantrips, prepared spells, slots). Everything stays editable. You can also start from a blank sheet or upload a saved character.
+- **Upload an existing character:** one Upload button takes a fillable PDF sheet (the official sheet, a D&D Beyond download and most look-alikes, including "secured" PDFs), photos or scans of a paper sheet, or a Campaign Codex file. Fillable PDFs are read right in the browser. Photos, scans and PDFs without form fields are read by the AI helper (needs the player's AI access code; AI-SETUP.md, Part F). You check what was read before it's added, and spells that match the spell list go onto the Spells tab.
 - **Subclasses:** all 123 official ones (Player's Handbook 2024 plus Xanathar's, Tasha's, Sword Coast, Wildemount, Fizban's, Van Richten's, Bigby's, Dragonlance, Heroes of Faerûn and the 2014 core books), plus an "Other / homebrew" option.
 - **Sheet in folders:** Character info, Ability scores, Skills, Combat, Spells, Features & traits, Proficiencies, Equipment and Notes. Quick stats (HP, AC, initiative, speed, proficiency) stay visible above them. Tap any number to roll it. Less-used actions live in the **More** menu.
 - **Spells tab, laid out like the official spell sheet:** spellcasting class, ability, save DC and spell attack at the top; cantrips and each spell level with its slots (tick them off, Long rest / Short rest to restore; warlock Pact Magic and Mystic Arcanum included). Choose spells from your class list (★ marks popular, dependable picks for your class, listed first; 363 spells from the SRD 5.2, with level, school, casting time, range, components, duration and a short summary), mark them prepared or always prepared (limited to your class's cantrips and prepared spells; wizards also have a spellbook limit; bonus spells from feats, species or the DM don't count), and use Cast, Hit and damage buttons. Add homebrew spells, and change slot numbers for multiclass characters.
@@ -96,6 +97,7 @@ server/aws/build-template.py rebuilds template.yaml after editing index.js
 amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)
 js/battlemap.js    battle map: drawing, pictures, tokens, fog of war, and what players are sent
+js/import.js       character upload: reads PDF form fields (and secured PDFs), or sends photos to the AI
 js/feature-info-more.js short descriptions of subclass features from other books
 js/maps-dialog.js  battle maps opened from the DM's campaign page (prep before the room)
 js/room.js         party room connections (host, join, sync)

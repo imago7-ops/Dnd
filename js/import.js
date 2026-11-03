@@ -62,17 +62,17 @@ const CharImport = (() => {
           continue;
         }
         if (c === '(') { depth++; if (depth > 1) out += c; continue; }
-        if (c === ')') { depth--; if (depth === 0) return { value: decodeText(out), kind: 'text' }; out += c; continue; }
+        if (c === ')') { depth--; if (depth === 0) return { value: out, kind: 'text' }; out += c; continue; }
         out += c;
       }
-      return { value: decodeText(out), kind: 'text' };
+      return { value: out, kind: 'text' };
     }
     if (ch === '<' && str[i + 1] !== '<') {
       const end = str.indexOf('>', i);
       const hex = str.slice(i + 1, end).replace(/\s+/g, '');
       let raw = '';
       for (let j = 0; j < hex.length; j += 2) raw += String.fromCharCode(parseInt((hex[j] + (hex[j + 1] || '0')), 16));
-      return { value: decodeText(raw), kind: 'text' };
+      return { value: raw, kind: 'text' };
     }
     if (ch === '/') {
       const m = /^\/([^\s/<>[\]()]*)/.exec(str.slice(i));
@@ -83,11 +83,119 @@ const CharImport = (() => {
     return { value: '', kind: 'none' };
   }
 
+
+  /* ---------- Opening "secured" PDFs (no password to open, but encrypted) ---------- */
+  const bytesOf = str => Uint8Array.from(str, ch => ch.charCodeAt(0) & 255);
+  const strOf = u8 => latin1(u8);
+  function md5(u8) {
+    const K = new Uint32Array(64), S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+    for (let i = 0; i < 64; i++) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0;
+    const len = u8.length, n = ((len + 8) >> 6) + 1, w = new Uint32Array(n * 16);
+    for (let i = 0; i < len; i++) w[i >> 2] |= u8[i] << ((i % 4) * 8);
+    w[len >> 2] |= 0x80 << ((len % 4) * 8);
+    w[n * 16 - 2] = (len * 8) >>> 0; w[n * 16 - 1] = Math.floor(len / 2 ** 29);
+    let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+    for (let o = 0; o < w.length; o += 16) {
+      let a = a0, b = b0, c = c0, d = d0;
+      for (let i = 0; i < 64; i++) {
+        let f, g;
+        if (i < 16) { f = (b & c) | (~b & d); g = i; } else if (i < 32) { f = (d & b) | (~d & c); g = (5 * i + 1) % 16; }
+        else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) % 16; } else { f = c ^ (b | ~d); g = (7 * i) % 16; }
+        const t = d; d = c; c = b;
+        const x = (a + f + K[i] + w[o + g]) >>> 0, r = S[(i >> 4) * 4 + (i % 4)];
+        b = (b + ((x << r) | (x >>> (32 - r)))) >>> 0; a = t;
+      }
+      a0 = (a0 + a) >>> 0; b0 = (b0 + b) >>> 0; c0 = (c0 + c) >>> 0; d0 = (d0 + d) >>> 0;
+    }
+    const out = new Uint8Array(16);
+    [a0, b0, c0, d0].forEach((v, i) => { for (let j = 0; j < 4; j++) out[i * 4 + j] = (v >>> (8 * j)) & 255; });
+    return out;
+  }
+  function rc4(key, data) {
+    const S = new Uint8Array(256).map((_, i) => i);
+    for (let i = 0, j = 0; i < 256; i++) { j = (j + S[i] + key[i % key.length]) & 255; [S[i], S[j]] = [S[j], S[i]]; }
+    const out = new Uint8Array(data.length);
+    for (let k = 0, i = 0, j = 0; k < data.length; k++) {
+      i = (i + 1) & 255; j = (j + S[i]) & 255; [S[i], S[j]] = [S[j], S[i]];
+      out[k] = data[k] ^ S[(S[i] + S[j]) & 255];
+    }
+    return out;
+  }
+  const cat = (...parts) => { const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let o = 0; parts.forEach(p => { out.set(p, o); o += p.length; }); return out; };
+  const aesKey = (raw, use) => crypto.subtle.importKey('raw', raw, 'AES-CBC', false, [use]);
+  async function aesDecrypt(key, data) { // data = IV + ciphertext, PKCS#7 padded
+    if (data.length < 32 || data.length % 16) return new Uint8Array(0);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv: data.subarray(0, 16) }, await aesKey(key, 'decrypt'), data.subarray(16)));
+  }
+  async function aesEncryptRaw(key, iv, data) { // no padding: drop the padding block WebCrypto adds
+    const out = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, await aesKey(key, 'encrypt'), data));
+    return out.subarray(0, data.length);
+  }
+  async function aesDecryptRaw(key, iv, data) { // no padding: append a block that decrypts to valid padding
+    const pad = await aesEncryptRaw(key, data.subarray(data.length - 16), new Uint8Array(16).fill(16));
+    return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, await aesKey(key, 'decrypt'), cat(data, pad)));
+  }
+  const sha = async (alg, u8) => new Uint8Array(await crypto.subtle.digest(alg, u8));
+  async function hash2B(salt, rev) { // empty user password
+    let K = await sha('SHA-256', salt);
+    if (rev < 6) return K;
+    for (let round = 0; ; round++) {
+      const K1 = new Uint8Array(K.length * 64);
+      for (let i = 0; i < 64; i++) K1.set(K, i * K.length);
+      const E = await aesEncryptRaw(K.subarray(0, 16), K.subarray(16, 32), K1);
+      const m = E.subarray(0, 16).reduce((x, y) => x + y, 0) % 3;
+      K = await sha(['SHA-256', 'SHA-384', 'SHA-512'][m], E);
+      if (round >= 63 && E[E.length - 1] <= round - 31) break;
+    }
+    return K.subarray(0, 32);
+  }
+  const PAD = bytesOf('\x28\xbf\x4e\x5e\x4e\x75\x8a\x41\x64\x00\x4e\x56\xff\xfa\x01\x08\x2e\x2e\x00\xb6\xd0\x68\x3e\x80\x2f\x0c\xa9\xfe\x64\x53\x69\x7a');
+  /* Work out the decryption key for a PDF that opens without a password. Returns null if it needs one. */
+  async function securityHandler(text, objs) {
+    const ref = /\/Encrypt\s+(\d+)\s+\d+\s+R/.exec(text);
+    const dict = ref ? objs.get(Number(ref[1])) : (/\/Encrypt\s*(<<[\s\S]*?>>)/.exec(text) || [])[1];
+    if (!dict) return null;
+    const get = name => { const m = new RegExp(`/${name}(?![A-Za-z])\\s*`).exec(dict); return m ? readValue(dict, m.index + m[0].length) : { value: '', kind: 'none' }; };
+    const num = name => Number((new RegExp(`/${name}\\s+(-?\\d+)`).exec(dict) || [])[1]);
+    if (!/\/Filter\s*\/Standard/.test(dict)) return null;
+    const R = num('R'), V = num('V');
+    const aes = /\/CFM\s*\/AESV2/.test(dict), aes256 = R >= 5 || /\/CFM\s*\/AESV3/.test(dict);
+    if (aes256) {
+      const U = bytesOf(get('U').value), UE = bytesOf(get('UE').value);
+      if (U.length < 48 || UE.length < 32) return null;
+      const check = await hash2B(U.subarray(32, 40), R);
+      if (strOf(check) !== strOf(U.subarray(0, 32))) return null; // needs a password
+      const fileKey = await aesDecryptRaw(await hash2B(U.subarray(40, 48), R), new Uint8Array(16), UE.subarray(0, 32));
+      return { decrypt: async (data) => aesDecrypt(fileKey, data) };
+    }
+    const n = R === 2 ? 5 : V >= 4 ? 16 : Util.clamp((num('Length') || 40) / 8, 5, 16);
+    const O = bytesOf(get('O').value).subarray(0, 32), U = bytesOf(get('U').value);
+    const P = num('P') | 0;
+    const id = (() => { const m = /\/ID\s*\[\s*/.exec(text); return m ? bytesOf(readValue(text, m.index + m[0].length).value) : new Uint8Array(0); })();
+    const noMeta = R >= 4 && /\/EncryptMetadata\s+false/.test(dict);
+    let key = md5(cat(PAD, O, Uint8Array.of(P & 255, (P >> 8) & 255, (P >> 16) & 255, (P >>> 24) & 255), id, noMeta ? Uint8Array.of(255, 255, 255, 255) : new Uint8Array(0))).subarray(0, n);
+    if (R >= 3) for (let i = 0; i < 50; i++) key = md5(key).subarray(0, n);
+    // Check the key against /U (empty password).
+    if (R === 2 ? strOf(rc4(key, PAD)) !== strOf(U.subarray(0, 32)) : (() => {
+      let x = rc4(key, md5(cat(PAD, id)));
+      for (let i = 1; i <= 19; i++) x = rc4(key.map(b => b ^ i), x);
+      return strOf(x) !== strOf(U.subarray(0, 16));
+    })()) return null;
+    return {
+      decrypt: async (data, objNum, gen = 0) => {
+        const k = md5(cat(key, Uint8Array.of(objNum & 255, (objNum >> 8) & 255, (objNum >> 16) & 255, gen & 255, (gen >> 8) & 255), aes ? bytesOf('sAlT') : new Uint8Array(0))).subarray(0, Math.min(n + 5, 16));
+        return aes ? aesDecrypt(k, data) : rc4(k, data);
+      },
+      v: V,
+    };
+  }
+
   async function pdfFields(bytes) {
     const text = latin1(bytes);
     if (!text.startsWith('%PDF')) throw new Error('That file isn\'t a PDF.');
-    if (/\/Encrypt\s/.test(text)) return { fields: new Map(), encrypted: true };
-    const objs = new Map();
+    const objs = new Map();      // number -> body text
+    const packed = new Set();    // objects that came out of an object stream (their strings aren't encrypted separately)
+    const streams = [];
     const re = /(\d+)\s+(\d+)\s+obj\b/g;
     let m;
     const starts = [];
@@ -97,41 +205,52 @@ const CharImport = (() => {
       const end = text.indexOf('endobj', at);
       const body = text.slice(at, end < 0 ? (starts[k + 1] ? starts[k + 1][1] : text.length) : end);
       objs.set(num, body);
-      // Object streams pack many objects into one compressed stream.
-      if (/\/Type\s*\/ObjStm/.test(body)) {
-        const s0 = body.search(/stream\r?\n/);
-        if (s0 < 0) continue;
-        const dataStart = at + s0 + body.slice(s0).match(/stream\r?\n/)[0].length;
-        let dataEnd = text.indexOf('endstream', dataStart);
-        while (dataEnd > dataStart && /[\r\n]/.test(text[dataEnd - 1])) dataEnd--;
-        let raw = bytes.subarray(dataStart, dataEnd);
-        try {
-          if (/\/FlateDecode/.test(body.slice(0, s0))) raw = await inflate(raw);
-        } catch { continue; }
-        const s = latin1(raw);
-        const n = Number((/\/N\s+(\d+)/.exec(body) || [])[1] || 0);
-        const first = Number((/\/First\s+(\d+)/.exec(body) || [])[1] || 0);
-        const head = s.slice(0, first).trim().split(/\s+/).map(Number);
-        for (let i = 0; i < n; i++) {
-          const onum = head[i * 2], off = head[i * 2 + 1], next = i + 1 < n ? head[(i + 1) * 2 + 1] : s.length - first;
-          objs.set(onum, s.slice(first + off, first + next));
-        }
+      if (/\/Type\s*\/ObjStm/.test(body)) streams.push([num, at, body]);
+    }
+    let sec = null;
+    if (/\/Encrypt\s/.test(text)) {
+      try { sec = await securityHandler(text, objs); } catch { sec = null; }
+      if (!sec) return { fields: new Map(), encrypted: true };
+    }
+    // Object streams pack many objects into one compressed stream.
+    for (const [num, at, body] of streams) {
+      const s0 = body.search(/stream\r?\n/);
+      if (s0 < 0) continue;
+      const dataStart = at + s0 + body.slice(s0).match(/stream\r?\n/)[0].length;
+      const len = Number((/\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(body.slice(0, s0)) || [])[1]);
+      let dataEnd = len ? dataStart + len : text.indexOf('endstream', dataStart);
+      if (!len) while (dataEnd > dataStart && /[\r\n]/.test(text[dataEnd - 1])) dataEnd--;
+      let raw = bytes.subarray(dataStart, dataEnd);
+      try {
+        if (sec) raw = await sec.decrypt(raw, num);
+        if (/\/FlateDecode/.test(body.slice(0, s0))) raw = await inflate(raw);
+      } catch { continue; }
+      const s = latin1(raw);
+      const n = Number((/\/N\s+(\d+)/.exec(body) || [])[1] || 0);
+      const first = Number((/\/First\s+(\d+)/.exec(body) || [])[1] || 0);
+      const head = s.slice(0, first).trim().split(/\s+/).map(Number);
+      for (let i = 0; i < n; i++) {
+        const onum = head[i * 2], off = head[i * 2 + 1], next = i + 1 < n ? head[(i + 1) * 2 + 1] : s.length - first;
+        objs.set(onum, s.slice(first + off, first + next));
+        packed.add(onum);
       }
     }
-    const fields = new Map();
-    const deref = v => {
-      if (v.kind !== 'ref') return v;
-      const o = objs.get(v.value);
-      return o ? readValue(o.trim(), 0) : { value: '', kind: 'none' };
+    const textOf = async (v, num) => {
+      if (v.kind !== 'text') return String(v.value ?? '');
+      let raw = v.value;
+      if (sec && !packed.has(num)) { try { raw = strOf(await sec.decrypt(bytesOf(raw), num)); } catch { raw = ''; } }
+      return decodeText(raw);
     };
-    for (const body of objs.values()) {
+    const fields = new Map();
+    for (const [num, body] of objs) {
       const tm = /\/T\s*(?=[(<])/.exec(body);
       if (!tm) continue;
-      const name = readValue(body, tm.index + tm[0].length).value;
+      const name = await textOf(readValue(body, tm.index + tm[0].length), num);
       const vm = /\/V(?![A-Za-z])\s*/.exec(body);
       if (!name || !vm) continue;
-      const v = deref(readValue(body, vm.index + vm[0].length));
-      const value = String(v.value ?? '').trim();
+      let v = readValue(body, vm.index + vm[0].length), from = num;
+      if (v.kind === 'ref') { from = v.value; const o = objs.get(v.value); v = o ? readValue(o.trim(), 0) : { value: '', kind: 'none' }; }
+      const value = (await textOf(v, from)).trim();
       if (!value) continue;
       if (!fields.has(name) || !fields.get(name)) fields.set(name, value);
     }
@@ -438,7 +557,11 @@ If several pages are included, combine them. If the sheet lists more than one cl
     if (files.length === 1 && (/\.pdf$/i.test(files[0].name) || files[0].type === 'application/pdf')) {
       body.innerHTML = `${head('Reading the PDF…')}<div class="modal-body"><p class="ai-wait">Looking for the sheet's form fields…</p></div>`;
       try {
-        const { fields } = await pdfFields(new Uint8Array(await files[0].arrayBuffer()));
+        const { fields, encrypted } = await pdfFields(new Uint8Array(await files[0].arrayBuffer()));
+        if (encrypted) {
+          close();
+          return Util.toast('That PDF is locked with a password. Open it, save a copy without the password (or take photos of it), then upload that.', 'error');
+        }
         const { sheet, recognized } = fromFields(fields);
         if (recognized >= 8 && (sheet.name || sheet.className || Object.keys(sheet.abilities).length >= 4)) {
           sheet._from = 'pdf';

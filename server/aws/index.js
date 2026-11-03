@@ -393,6 +393,9 @@ exports.handler = async event => {
     return reply(429, { error: "You've reached today's AI limit. It resets at midnight UTC." });
   }
 
+  if (provider === 'openai' && attachments && attachments.some(a => a.type === 'application/pdf')) {
+    return reply(400, { error: 'ChatGPT can\'t read PDF files here. Choose Claude, or upload photos of the pages instead.' });
+  }
   // Reading a whole character sheet needs a longer reply than drafting one entry.
   const maxTokens = importing ? 6000 : Math.min(4000, Math.max(100, parseInt(env('MAX_TOKENS'), 10) || DEFAULTS.maxTokens));
   try {

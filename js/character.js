@@ -106,33 +106,39 @@ const Character = (() => {
     });
   }
 
-  async function upload(el) {
-    try {
-      const data = await Util.pickJSON();
-      const c = normalize(data);
+  /* Upload: a Campaign Codex file, a fillable PDF sheet, or photos/scans read by the AI (js/import.js). */
+  function upload(el) {
+    const add = (c, msg) => {
       Store.state.characters.push(c);
       Store.state.activeCharacterId = c.id;
       Store.save();
       mountSheet(el);
-      Util.toast(`Uploaded ${c.name || 'character'}.`);
-    } catch (e) {
-      Util.toast(e.message, 'error');
-    }
+      Util.toast(msg);
+    };
+    const onJSON = data => {
+      try { const c = normalize(data); add(c, `Uploaded ${c.name || 'character'}.`); }
+      catch (e) { Util.toast(e.message, 'error'); }
+    };
+    if (typeof CharImport === 'undefined') return Util.pickJSON().then(onJSON).catch(e => Util.toast(e.message, 'error'));
+    CharImport.start({
+      onJSON,
+      done: c => add(c, `Added ${c.name || 'your character'}. Check the sheet and fix anything that was misread.`),
+    }).catch(e => Util.toast(e.message || 'Couldn\'t read that file.', 'error'));
   }
 
   function mountStart(el) {
     el.innerHTML = `
       <div class="start">
         <h1>Make your character</h1>
-        <p class="lede">Start a fresh 5e sheet, or bring in a character you saved from Campaign Codex before.</p>
+        <p class="lede">Start a fresh 5e sheet, or bring in a character you already have.</p>
         <div class="start-grid">
           <button class="start-card" data-action="new">
             <span class="start-title">Create a new character</span>
             <span class="start-desc">Choose your species, background, class, subclass and level. Your hit points, armor class, skills, attacks, features and spells fill themselves in.</span>
           </button>
           <button class="start-card" data-action="upload">
-            <span class="start-title">Upload a character file</span>
-            <span class="start-desc">Pick a .json file you downloaded from your sheet, on this computer or another one.</span>
+            <span class="start-title">Upload a character</span>
+            <span class="start-desc">A PDF character sheet (the official fillable sheet or a D&amp;D Beyond download), photos or scans of a paper sheet, or a Campaign Codex file you saved before.</span>
           </button>
         </div>
       </div>`;
@@ -707,5 +713,5 @@ const Character = (() => {
     }
   }
 
-  return { mount, active, initBonus, blank };
+  return { mount, active, initBonus, blank, normalize };
 })();

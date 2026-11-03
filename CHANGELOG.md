@@ -7,6 +7,7 @@ AI drafting requests (who asked the AI for what, and when) are tracked separatel
 
 | When | Version | Who | What changed |
 |---|---|---|---|
+| 2026-11-03 14:05 | 2.5 | Requested by imago7-ops, built by Claude | **Upload a character from a sheet:** players can upload a fillable PDF character sheet (the official sheet, D&D Beyond downloads and most look-alikes, including "secured" PDFs), which is read straight in the browser, or photos, scans and plain PDFs of a sheet, which the AI reads. A summary shows what was read before the character is added; known spells go onto the Spells tab. Photos and scans need the AWS helper updated (AI-SETUP.md, Part F) and an AI access code for each player. |
 | 2026-11-03 13:18 | 2.4.2 | Requested by imago7-ops, built by Claude | Removed the "Ideas for next steps" list from the README. |
 | 2026-11-03 10:40 | 2.4.1 | Requested by imago7-ops, built by Claude | Features & traits: short descriptions for the older subclasses too (Xanathar's, Tasha's, Sword Coast, the 2014 Player's Handbook and DMG, Fizban's, Van Richten's, Wildemount, Bigby's and Dragonlance), about 350 features in all. |
 | 2026-11-03 10:05 | 2.4 | Requested by imago7-ops, built by Claude | **Battle maps from the campaign page:** a new Battle maps button at the top of every campaign opens the full map editor, so DMs can draw maps, place tokens, set fog and choose which map players will see before opening the party room. |

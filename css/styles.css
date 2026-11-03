@@ -1734,3 +1734,22 @@ body.bm-lock .dice-fab { display: none; }
   .maps-backdrop { padding: 0; }
   .maps-dialog { max-height: 100vh; height: 100%; border-radius: 0; border: 0; padding: 12px; }
 }
+
+/* Character import */
+.imp-modal { width: min(620px, 100%); }
+.imp-how { margin: 14px 0 10px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--panel-2, var(--panel)); border: 1px solid var(--line-soft); color: var(--muted); font-size: .92rem; }
+.imp-how.ai { border-color: color-mix(in srgb, var(--gold) 45%, transparent); background: var(--gold-soft); color: var(--text); }
+.imp-card { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 10px; }
+.imp-card h3 { font-family: var(--serif); font-size: 1.4rem; margin: 0; }
+.imp-card p { margin: 0; }
+.imp-scores, .imp-facts { display: grid; gap: 6px; margin: 6px 0; }
+.imp-scores { grid-template-columns: repeat(6, 1fr); }
+.imp-facts { grid-template-columns: repeat(4, 1fr); }
+.imp-scores > div, .imp-facts > div { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 6px 4px; text-align: center; }
+.imp-scores dt, .imp-facts dt { font-size: .72rem; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+.imp-scores dd, .imp-facts dd { margin: 2px 0 0; font-weight: 700; font-size: 1.1rem; }
+.imp-warn { color: var(--gold); }
+@media (max-width: 560px) {
+  .imp-scores { grid-template-columns: repeat(3, 1fr); }
+  .imp-facts { grid-template-columns: repeat(2, 1fr); }
+}
