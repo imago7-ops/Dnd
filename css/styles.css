@@ -1713,3 +1713,24 @@ body.bm-lock .dice-fab { display: none; }
 @media (max-width: 860px) {
   .feed, .known-box { height: auto; max-height: 55vh; min-height: 200px; }
 }
+
+/* Battle maps opened from the campaign page */
+.nb-head-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.nb-head-btns .btn-guide { margin-top: 0; }
+.btn-maps { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.btn-maps svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.maps-dialog {
+  width: min(1240px, 100%); max-height: calc(100vh - 40px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px; padding: 16px 18px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 30px 80px -20px color-mix(in srgb, var(--shadow) 80%, transparent);
+}
+.maps-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.maps-head > div { display: flex; flex-direction: column; gap: 2px; }
+.maps-head b { font-family: var(--serif); font-size: 1.2rem; }
+.maps-hint { margin: 0; }
+.maps-body .bm { margin: 0; }
+@media (max-width: 860px) {
+  .maps-backdrop { padding: 0; }
+  .maps-dialog { max-height: 100vh; height: 100%; border-radius: 0; border: 0; padding: 12px; }
+}

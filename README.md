@@ -42,6 +42,7 @@ A browser-based D&D 5e (2024 rules) table companion. No install and no build ste
 - Connections go directly to the DM's browser using WebRTC via [PeerJS](https://peerjs.com/) and its free public broker, so the DM's tab must stay open while you play. Some strict networks block direct connections.
 
 ### Battle map (in the party room)
+- **Prepare ahead (DM):** open **Battle maps** at the top of any campaign to build, edit and pick maps before you open the party room. Everything is saved with the campaign, so it's ready when the session starts.
 - **Make maps (DM):** each campaign keeps as many maps as you like. Draw on a square grid with Floor, Wall, Door and ground colors (water, grass, sand, lava, ice, wood, stone), plus see-through overlays that sit on top of the ground (difficult terrain, magic, blood, fire, darkness; "Clear overlays" removes them), or use Shapes for filled boxes, outlines, circles and lines. Undo takes back the last stroke. Or upload a picture of a map and draw on top of it.
 - **Pictures:** big pictures are shrunk (about 2000 pixels, compressed) so the whole campaign still fits in your account; Map settings shows how much room is left. Line the grid up with the picture's own squares with "Squares across", "Square size" and the arrow buttons. Each square is 5 feet unless you change it.
 - **Pick what players see:** "Show players this map" chooses the map on the players' screens; "Stop showing players" hides it.
@@ -95,6 +96,7 @@ server/aws/build-template.py rebuilds template.yaml after editing index.js
 amplify.yml        AWS Amplify hosting settings
 js/combat.js       combat tracker (shown inside the party room)
 js/battlemap.js    battle map: drawing, pictures, tokens, fog of war, and what players are sent
+js/maps-dialog.js  battle maps opened from the DM's campaign page (prep before the room)
 js/room.js         party room connections (host, join, sync)
 js/party.js        party room page
 js/app.js          role picker, page routing, phone dice button

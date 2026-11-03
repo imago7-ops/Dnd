@@ -1489,7 +1489,7 @@ const Battlemap = (() => {
             n++;
           });
           if (n) commit();
-          return Util.toast(n ? `Added ${n} player token${n > 1 ? 's' : ''}. Each player can move their own.` : Room.players.length ? 'Everyone in the room already has a token.' : 'No players are in the room yet.');
+          return Util.toast(n ? `Added ${n} player token${n > 1 ? 's' : ''}. Each player can move their own.` : Room.players.length ? 'Everyone in the room already has a token.' : 'No players are in the room yet. Player tokens can be added once they join the party room; you can also add a token by name below.');
         }
         case 'add-combat': {
           let n = 0;
@@ -1647,7 +1647,7 @@ const Battlemap = (() => {
     setTool('move');
     renderAll();
     sizeCanvas();
-    return { refresh: renderAll };
+    return { refresh: renderAll, cleanup };
   }
 
   return { mount, hostView, tileData, hiddenCombatants, playerMove, checkPing, mapsOf, shownMap, newMap, normalize };

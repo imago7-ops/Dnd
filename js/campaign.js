@@ -437,7 +437,10 @@ const Campaign = (() => {
           <div class="nb-title">
             <input class="campaign-name" data-ref="name" value="${esc(cp.name)}" placeholder="Untitled campaign" aria-label="Campaign name">
             <textarea class="campaign-pitch" data-ref="pitch" rows="1" placeholder="One line about this campaign: the premise, the tone, the big threat…" aria-label="Campaign summary">${esc(cp.pitch || '')}</textarea>
-            <button class="btn btn-guide" data-action="guide" data-ref="guideBtn" hidden><span aria-hidden="true">▶</span> Open the campaign guide</button>
+            <div class="nb-head-btns">
+              <button class="btn btn-guide" data-action="guide" data-ref="guideBtn" hidden><span aria-hidden="true">▶</span> Open the campaign guide</button>
+              <button class="btn btn-maps" data-action="maps" data-ref="mapsBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg> <span data-ref="mapsLabel">Battle maps</span></button>
+            </div>
           </div>
           <div class="nb-tools">
             <input type="search" class="nb-search" data-ref="search" placeholder="Search everything" aria-label="Search the campaign">
@@ -639,6 +642,7 @@ const Campaign = (() => {
       renderLists();
       renderFilter();
       ref('guideBtn').hidden = !Guide.has(cp);
+      { const n = typeof Battlemap !== 'undefined' ? Battlemap.mapsOf(cp).length : 0; ref('mapsLabel').textContent = n ? `Battle maps (${n})` : 'Battle maps'; }
     }
 
     function autoSize(t) {
@@ -816,6 +820,10 @@ const Campaign = (() => {
       node?.scrollIntoView({ behavior: Util.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
       node?.querySelector('.entry-head')?.focus({ preventScroll: true });
     }
+    function openMaps() {
+      MapsDialog.open(cp, { onClose: () => { if (el.isConnected) render(); } });
+    }
+
     function openGuide() {
       Guide.open(cp, { onClose: () => { if (el.isConnected) render(); }, onJump: jumpTo });
     }
@@ -886,6 +894,7 @@ const Campaign = (() => {
           return;
         case 'jump': return jumpTo(btn.dataset.sec, btn.dataset.id);
         case 'guide': return openGuide();
+        case 'maps': return openMaps();
         case 'expand': cp.sections.forEach(s => { s.open = true; }); save(); return render();
         case 'collapse': cp.sections.forEach(s => { s.open = false; s.entries.forEach(x => { x.open = false; }); }); save(); return render();
         case 'export':
