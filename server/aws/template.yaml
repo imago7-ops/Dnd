@@ -236,7 +236,7 @@ Resources:
       Runtime: nodejs22.x
       Handler: index.handler
       MemorySize: 256
-      Timeout: 60
+      Timeout: 120
       Role: !GetAtt FunctionRole.Arn
       Environment:
         Variables:
@@ -375,12 +375,37 @@ Resources:
               .map(([k, v]) => [k, v.N !== undefined ? Number(v.N) : v.S])));
           }
 
-          async function askClaude(system, prompt, maxTokens) {
+          /* Attachments (pictures or a PDF of a character sheet) sent with an import request. */
+          const ATTACH_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+          function attachmentsOf(body) {
+            const list = Array.isArray(body.attachments) ? body.attachments.slice(0, 4) : [];
+            let total = 0;
+            const out = [];
+            for (const a of list) {
+              if (!a || !ATTACH_TYPES.includes(a.type) || typeof a.data !== 'string') continue;
+              total += a.data.length;
+              if (total > 5.2e6) throw new Error('Those files are too large. Try a smaller photo or fewer pages.');
+              out.push({ type: a.type, data: a.data.replace(/^data:[^,]+,/, '') });
+            }
+            return out;
+          }
+
+          function claudeContent(prompt, attachments) {
+            if (!attachments || !attachments.length) return prompt;
+            return [
+              ...attachments.map(a => (a.type === 'application/pdf'
+                ? { type: 'document', source: { type: 'base64', media_type: a.type, data: a.data } }
+                : { type: 'image', source: { type: 'base64', media_type: a.type, data: a.data } })),
+              { type: 'text', text: prompt },
+            ];
+          }
+
+          async function askClaude(system, prompt, maxTokens, attachments) {
             const model = env('ANTHROPIC_MODEL') || DEFAULTS.anthropicModel;
             const r = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
               headers: { 'x-api-key': env('ANTHROPIC_API_KEY'), authorization: `Bearer ${env('ANTHROPIC_API_KEY')}`, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-              body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }),
+              body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: claudeContent(prompt, attachments) }] }),
             });
             const d = await r.json().catch(() => ({}));
             if (!r.ok) throw new Error((d.error && d.error.message) || `Claude returned an error (${r.status}).`);
@@ -388,12 +413,16 @@ Resources:
             return { text, model, inTokens: d.usage && d.usage.input_tokens, outTokens: d.usage && d.usage.output_tokens };
           }
 
-          async function askOpenAI(system, prompt, maxTokens) {
+          async function askOpenAI(system, prompt, maxTokens, attachments) {
+            if (attachments && attachments.some(a => a.type === 'application/pdf')) throw new Error('ChatGPT can\'t read PDF files here. Choose Claude, or upload photos of the pages instead.');
+            const content = attachments && attachments.length
+              ? [{ type: 'text', text: prompt }, ...attachments.map(a => ({ type: 'image_url', image_url: { url: `data:${a.type};base64,${a.data}` } }))]
+              : prompt;
             const model = env('OPENAI_MODEL') || DEFAULTS.openaiModel;
             const r = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: { authorization: `Bearer ${env('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
-              body: JSON.stringify({ model, max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
+              body: JSON.stringify({ model, max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content }] }),
             });
             const d = await r.json().catch(() => ({}));
             if (!r.ok) throw new Error((d.error && d.error.message) || `ChatGPT returned an error (${r.status}).`);
@@ -585,7 +614,7 @@ Resources:
               const accounts = pool && env('USER_POOL_CLIENT_ID') && env('DATA_TABLE')
                 ? { region: pool.split('_')[0], clientId: env('USER_POOL_CLIENT_ID'), inviteRequired: env('INVITE_REQUIRED') === 'yes' }
                 : null;
-              return reply(200, { ok: true, providers, needsCode: true, accounts });
+              return reply(200, { ok: true, providers, needsCode: true, accounts, imports: true });
             }
             if (method !== 'POST') return reply(405, { error: 'Use POST.' });
 
@@ -609,8 +638,12 @@ Resources:
 
             const provider = body.provider === 'openai' ? 'openai' : 'anthropic';
             if (!providers.includes(provider)) return reply(400, { error: `${provider === 'openai' ? 'ChatGPT' : 'Claude'} is not switched on for this site.` });
+            const importing = meta.action === 'import';
             const system = clip(body.system, 6000);
-            const prompt = clip(body.prompt, 12000);
+            const prompt = clip(body.prompt, importing ? 30000 : 12000);
+            let attachments = [];
+            try { attachments = importing ? attachmentsOf(body) : []; }
+            catch (e) { return reply(413, { error: e.message }); }
             if (!prompt.trim()) return reply(400, { error: 'Describe what you want the AI to draft.' });
 
             if (await overLimit(who)) {
@@ -618,9 +651,10 @@ Resources:
               return reply(429, { error: "You've reached today's AI limit. It resets at midnight UTC." });
             }
 
-            const maxTokens = Math.min(4000, Math.max(100, parseInt(env('MAX_TOKENS'), 10) || DEFAULTS.maxTokens));
+            // Reading a whole character sheet needs a longer reply than drafting one entry.
+            const maxTokens = importing ? 6000 : Math.min(4000, Math.max(100, parseInt(env('MAX_TOKENS'), 10) || DEFAULTS.maxTokens));
             try {
-              const out = provider === 'openai' ? await askOpenAI(system, prompt, maxTokens) : await askClaude(system, prompt, maxTokens);
+              const out = provider === 'openai' ? await askOpenAI(system, prompt, maxTokens, attachments) : await askClaude(system, prompt, maxTokens, attachments);
               await writeLog({ ...base, who, provider, model: out.model, status: 'ok', inTokens: out.inTokens, outTokens: out.outTokens, costUsd: cost(out.model, out.inTokens, out.outTokens) });
               return reply(200, { text: out.text, provider, who });
             } catch (e) {

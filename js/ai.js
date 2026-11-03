@@ -26,14 +26,14 @@ const AI = (() => {
       const r = await fetch(endpoint(), { method: 'GET' });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'The AI helper refused the connection.');
-      statusCache = { connected: true, providers: d.providers || [], needsCode: Boolean(d.needsCode), accounts: d.accounts || null };
+      statusCache = { connected: true, providers: d.providers || [], needsCode: Boolean(d.needsCode), accounts: d.accounts || null, imports: Boolean(d.imports) };
     } catch (e) {
       return { connected: false, error: e.message && e.message !== 'Failed to fetch' ? e.message : "Couldn't reach the AI helper. Check your internet connection." };
     }
     return statusCache;
   }
 
-  async function ask({ system, prompt, provider, code, meta }) {
+  async function ask({ system, prompt, provider, code, meta, attachments }) {
     let r;
     try {
       r = await fetch(endpoint(), {
@@ -43,7 +43,7 @@ const AI = (() => {
           // Signed-in DMs also get their account name in the AI activity log.
           ...(typeof Account !== 'undefined' && Account.idToken() ? { Authorization: `Bearer ${Account.idToken()}` } : {}),
         },
-        body: JSON.stringify({ provider, system, prompt, meta }),
+        body: JSON.stringify({ provider, system, prompt, meta, ...(attachments && attachments.length ? { attachments } : {}) }),
       });
     } catch {
       throw new Error("Couldn't reach the AI helper. Check your internet connection.");
@@ -365,5 +365,5 @@ const AI = (() => {
     if (endpoint() && settings().admin) load();
   }
 
-  return { open, openLog, settings, endpoint, status, parseJSON, clean };
+  return { open, openLog, settings, saveSettings, endpoint, status, ask, parseJSON, clean };
 })();
