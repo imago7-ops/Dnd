@@ -7,6 +7,7 @@ AI drafting requests (who asked the AI for what, and when) are tracked separatel
 
 | When | Version | Who | What changed |
 |---|---|---|---|
+| 2026-11-03 13:18 | 2.4.2 | Requested by imago7-ops, built by Claude | Removed the "Ideas for next steps" list from the README. |
 | 2026-11-03 10:40 | 2.4.1 | Requested by imago7-ops, built by Claude | Features & traits: short descriptions for the older subclasses too (Xanathar's, Tasha's, Sword Coast, the 2014 Player's Handbook and DMG, Fizban's, Van Richten's, Wildemount, Bigby's and Dragonlance), about 350 features in all. |
 | 2026-11-03 10:05 | 2.4 | Requested by imago7-ops, built by Claude | **Battle maps from the campaign page:** a new Battle maps button at the top of every campaign opens the full map editor, so DMs can draw maps, place tokens, set fog and choose which map players will see before opening the party room. |
 | 2026-11-02 15:33 | 2.3.3 | Requested by imago7-ops, built by Claude | Party room: the chat (Table talk) is bigger and "What the party knows" smaller, so they're about the same size, each scrolling on its own. Reading older chat no longer jumps to the newest message; a "New messages" button appears instead. |

@@ -103,14 +103,6 @@ js/party.js        party room page
 js/app.js          role picker, page routing, phone dice button
 ```
 
-## Ideas for next steps
-
-- Voice or video chat in the party room.
-- Spell and monster lookups from the 5e SRD.
-- Pictures in the campaign notebook (NPC portraits, handouts).
-- Lighting and line of sight on the battle map.
-- Online accounts so characters and campaigns sync across devices.
-
 ## Testing the party room on one computer
 
 Add `?transport=local&profile=NAME` to the address (served from a local web server, e.g. `python -m http.server`) to use an in-browser stand-in for the network. Each tab with a different `profile` keeps its own saved data, so one tab can be the DM and others can be players.
