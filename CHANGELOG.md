@@ -6,6 +6,12 @@ Every update to Campaign Codex, newest first, grouped by release. Version number
 
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
+## 4.1: First Patch
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-05 15:12 | 4.1 | Requested by imago7-ops, built by Claude | **Your homebrew** now lists each homebrew class with its subclasses underneath, and a "+ New (class) subclass" link that starts with that class picked. Subclasses for official classes (like a new Fighter subclass) are grouped by class. Downloading a class includes its subclasses, and deleting a class deletes its subclasses too (the button says so first). |
+
 ## 4.0: Version 4
 
 | When | Version | Who | What changed |

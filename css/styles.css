@@ -1791,3 +1791,12 @@ body.bm-lock .dice-fab { display: none; }
   .hb-row > .wide { grid-column: 1 / -1; }
   .hb-list li { flex-wrap: wrap; gap: 8px 14px; }
 }
+/* Your homebrew: each class with its subclasses underneath */
+.hb-list .hb-subs { display: block; padding: 0 0 6px; border-bottom: 1px solid var(--line-soft); }
+.hb-sublist { margin: 0 0 0 18px; padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.hb-sublist li { border-bottom: 1px dashed var(--line-soft); padding: 5px 0; }
+.hb-sublist li:last-child { border-bottom: 0; }
+.hb-sublist .hb-name b { font-weight: 500; }
+.hb-parent { margin: 12px 0 2px; font-size: .95rem; }
+.hb-add { padding-top: 6px; }
+.hb-list > li:has(+ .hb-subs) { border-bottom: 0; }

@@ -547,24 +547,46 @@ const Homebrew = (() => {
     document.addEventListener('keydown', onKey);
     const off = on(() => { if (host.isConnected) render(); });
 
+    const rowHTML = (x, extra = '') => `<li data-id="${esc(x.id)}">
+        <span class="hb-name"><b>${esc(x.name)}</b>${extra}</span>
+        <button class="link-btn" data-hb="edit">Edit</button>
+        <button class="link-btn" data-hb="download">Download</button>
+        <button class="link-btn danger" data-hb="delete">Delete</button></li>`;
+    const subsOf = name => items().filter(x => x.type === 'subclass' && x.parent === name);
+    const simple = (t, title) => {
+      const mine = items().filter(x => x.type === t);
+      return `<section class="lu-section"><div class="hb-head"><h3>${title}</h3><button class="btn btn-small" data-new="${t}">New ${KIND[t].one}</button></div>
+        ${mine.length ? `<ul class="hb-list">${mine.map(x => rowHTML(x)).join('')}</ul>` : '<p class="muted small">None yet.</p>'}</section>`;
+    };
+
     function render() {
       const list = items();
+      const classes = list.filter(x => x.type === 'class');
+      const mineNames = new Set(classes.map(x => x.name));
+      // Subclasses for other classes, grouped by the class they belong to.
+      const others = {};
+      list.filter(x => x.type === 'subclass' && !mineNames.has(x.parent)).forEach(x => { (others[x.parent] = others[x.parent] || []).push(x); });
+      const otherNames = Object.keys(others).sort((a, b) => a.localeCompare(b));
       body.innerHTML = `<header class="modal-head"><div><h2 id="hbm-title">Your homebrew</h2>
-          <p class="muted">Classes, subclasses, species and backgrounds you've made. They show up as options when you create a character.</p></div>
+          <p class="muted">Classes (with their subclasses), species and backgrounds you've made. They show up as options when you create a character.</p></div>
           <button class="icon-btn" data-act="close" aria-label="Close">×</button></header>
         <div class="modal-body">
-          ${ORDER.map(t => {
-            const mine = list.filter(x => x.type === t);
-            return `<section class="lu-section"><div class="hb-head"><h3>${t === 'class' ? 'Classes' : t === 'subclass' ? 'Subclasses' : t === 'species' ? 'Species' : 'Backgrounds'}</h3>
-              <button class="btn btn-small" data-new="${t}">New ${KIND[t].one}</button></div>
-              ${mine.length ? `<ul class="hb-list">${mine.map(x => `<li data-id="${esc(x.id)}">
-                <span class="hb-name"><b>${esc(x.name)}</b>${x.type === 'subclass' ? `<small>${esc(x.parent)}</small>` : ''}</span>
-                <button class="link-btn" data-hb="edit">Edit</button>
-                <button class="link-btn" data-hb="download">Download</button>
-                <button class="link-btn danger" data-hb="delete">Delete</button></li>`).join('')}</ul>` : '<p class="muted small">None yet.</p>'}
-            </section>`;
-          }).join('')}
-          <p class="muted small">Deleting a homebrew takes it off your list. Characters already made with it keep working.</p>
+          <section class="lu-section"><div class="hb-head"><h3>Classes and their subclasses</h3><button class="btn btn-small" data-new="class">New class</button></div>
+            ${classes.length ? `<ul class="hb-list">${classes.map(c => {
+              const subs = subsOf(c.name);
+              return `${rowHTML(c, `<small>${subs.length} subclass${subs.length === 1 ? '' : 'es'}</small>`)}
+                <li class="hb-subs"><ul class="hb-list hb-sublist">${subs.map(s => rowHTML(s)).join('')}
+                  <li class="hb-add"><button class="link-btn" data-new="subclass" data-parent="${esc(c.name)}">+ New ${esc(c.name)} subclass</button></li></ul></li>`;
+            }).join('')}</ul>` : '<p class="muted small">None yet.</p>'}
+          </section>
+          <section class="lu-section"><div class="hb-head"><h3>Subclasses for other classes</h3><button class="btn btn-small" data-new="subclass">New subclass</button></div>
+            ${otherNames.length ? otherNames.map(n => `<h4 class="hb-parent">${esc(n)}${R.CLASSES[n] ? '' : ' <small class="muted">(this class isn\'t in your options)</small>'}</h4>
+              <ul class="hb-list hb-sublist">${others[n].map(s => rowHTML(s)).join('')}</ul>`).join('')
+              : '<p class="muted small">Homebrew subclasses for official classes, like a new Fighter subclass, go here.</p>'}
+          </section>
+          ${simple('species', 'Species')}
+          ${simple('background', 'Backgrounds')}
+          <p class="muted small">Deleting a homebrew takes it off your list (deleting a class also deletes its subclasses). Characters already made with it keep working.</p>
         </div>
         <footer class="modal-foot"><button class="btn" data-act="upload">Upload homebrew</button>${list.length ? '<button class="btn" data-act="download-all">Download all</button>' : ''}<span class="foot-hint"></span><button class="btn btn-primary" data-act="close">Done</button></footer>`;
     }
@@ -574,7 +596,7 @@ const Homebrew = (() => {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.act === 'close') return close();
-      if (b.dataset.new) return edit(b.dataset.new, null);
+      if (b.dataset.new) return edit(b.dataset.new, null, { parent: b.dataset.parent });
       if (b.dataset.act === 'download-all') { download(items(), 'campaign-codex-homebrew.json'); return Util.toast('Homebrew downloaded. Send the file to a friend to upload.'); }
       if (b.dataset.act === 'upload') {
         try {
@@ -586,16 +608,24 @@ const Homebrew = (() => {
       const row = b.closest('[data-id]');
       const x = row && byId(row.dataset.id);
       if (!x) return;
+      const subs = x.type === 'class' ? subsOf(x.name) : [];
       if (b.dataset.hb === 'edit') return edit(x.type, x);
-      if (b.dataset.hb === 'download') { download([x], `${Util.slug(x.name)}-homebrew.json`); return Util.toast(`${x.name} downloaded.`); }
+      if (b.dataset.hb === 'download') {
+        // A class downloads with its subclasses, so they travel together.
+        download([x, ...subs], `${Util.slug(x.name)}-homebrew.json`);
+        return Util.toast(subs.length ? `${x.name} and its ${subs.length} subclass${subs.length === 1 ? '' : 'es'} downloaded.` : `${x.name} downloaded.`);
+      }
       if (b.dataset.hb === 'delete') {
         if (!b.dataset.armed) {
-          b.dataset.armed = '1'; b.textContent = 'Click again to delete';
+          b.dataset.armed = '1'; b.textContent = subs.length ? `Click again to delete it and its ${subs.length} subclass${subs.length === 1 ? '' : 'es'}` : 'Click again to delete';
           setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Delete'; } }, 3000);
           return;
         }
-        remove(x.id);
-        Util.toast(`Deleted ${x.name}.`);
+        const gone = new Set([x.id, ...subs.map(s => s.id)]);
+        lib().items = items().filter(i => !gone.has(i.id));
+        Store.save();
+        apply();
+        Util.toast(subs.length ? `Deleted ${x.name} and its subclasses.` : `Deleted ${x.name}.`);
       }
     });
     render();
