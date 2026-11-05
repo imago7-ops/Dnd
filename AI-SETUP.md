@@ -133,7 +133,7 @@ Everything is changed the same way: CloudFormation → `codex` → **Update** �
 ## Security notes
 
 - Your keys and codes are stored as the Lambda function's settings, encrypted by AWS. Anyone who can sign in to your AWS account can see them, so **keep MFA on** and don't share your AWS login.
-- The helper only answers your site's addresses and only for valid access codes, and each person has a daily limit. Wrong-code attempts appear in the activity log.
+- The helper only answers requests with a valid access code, and each person has a daily limit. It also turns away other websites, but programs outside a browser can get past that check, so the access codes are what really protect it: keep them private. Wrong-code attempts appear in the activity log.
 - The activity log stores what people asked the AI for, so remind DMs not to type real-world private information into AI requests.
 - **Accounts:** passwords go straight to Amazon Cognito; neither the site's code nor your helper ever sees them. The helper only saves or returns data for a valid sign-in token, and only that person's own data. Anyone who can sign in to your AWS account can see account emails and saved characters and campaigns, which is one more reason to keep MFA on.
 - Verification emails come from `no-reply@verificationemail.com`. Cognito's built-in email sends a limited number per day (about 50), which is plenty for a group of friends.

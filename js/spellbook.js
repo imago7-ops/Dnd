@@ -4,7 +4,7 @@
  * The Spells tab: laid out like the spell page of the official character sheet.
  * Spellcasting class, ability, save DC and attack bonus at the top; cantrips; then each
  * spell level with its slots (tick them off as you use them) and your spells, with a
- * prepared marker. Pick spells from the SRD list (js/spell-list.js) or add your own.
+ * prepared marker. Pick spells from the built-in list (js/spell-list.js) or add your own.
  *
  * Saved on the character as c.spellbook = {
  *   list: [{ n: name, p: 0 | 1 | 'a' (always prepared), lvl?: custom level, src?: note }],
@@ -353,7 +353,7 @@ const Spellbook = (() => {
       ${grantsHTML(c)}
       <div class="sb-levels" data-ref="sbLevels">${levelsHTML(c)}</div>
       ${slotEditorHTML(c)}
-      <p class="muted small sb-credit">Spell summaries are from the D&amp;D System Reference Document 5.2 (CC-BY-4.0), in short form: check your book for full rules.</p>
+      <p class="muted small sb-credit">Spell summaries are short, in our own words. Spells from the D&amp;D System Reference Document 5.2 are used under CC-BY-4.0. Check your book for full rules.</p>
     </div>`;
   }
 

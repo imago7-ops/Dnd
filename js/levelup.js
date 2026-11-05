@@ -124,6 +124,8 @@ const LevelUp = (() => {
     // Attacks
     x.attacks.forEach(a => {
       if (a.auto) Creator.recalcAttack(a, newScores, to, x.className);
+      // STR or DEX attacks follow the new scores and proficiency (e.g. after an Ability Score Improvement).
+      else if (a.abil === 'str' || a.abil === 'dex') Character.applyAttackAbility(x, a);
       else if (a.bonus !== '' && Number.isFinite(Number(a.bonus))) a.bonus = Number(a.bonus) + newPb - oldPb;
     });
 

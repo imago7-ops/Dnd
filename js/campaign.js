@@ -196,9 +196,37 @@ const Campaign = (() => {
     return code;
   }
 
+  /* Ids from an uploaded file go onto the page, so keep only plain ones (others get a fresh id). */
+  function cleanIds(c) {
+    const seen = new Set();
+    const fresh = v => { let id = Util.safeId(v); while (seen.has(id)) id = Util.uid(); seen.add(id); return id; };
+    c.sections = (Array.isArray(c.sections) ? c.sections : []).filter(s => s && typeof s === 'object');
+    c.sections.forEach(sec => {
+      sec.id = fresh(sec.id);
+      sec.label = String(sec.label || (TYPES[sec.type] && TYPES[sec.type].label) || 'Section');
+      sec.entries = (Array.isArray(sec.entries) ? sec.entries : []).filter(e => e && typeof e === 'object');
+      sec.entries.forEach(e => {
+        e.id = fresh(e.id);
+        if (!e.f || typeof e.f !== 'object') e.f = {};
+        e.tags = Array.isArray(e.tags) ? e.tags.map(String) : [];
+      });
+    });
+    if (Array.isArray(c.maps)) {
+      c.maps = c.maps.filter(m => m && typeof m === 'object');
+      c.maps.forEach(m => {
+        const old = m.id;
+        m.id = fresh(m.id);
+        if (c.shownMapId === old && old !== m.id) c.shownMapId = m.id;
+        if (Array.isArray(m.tokens)) m.tokens = m.tokens.filter(t => t && typeof t === 'object').map(t => ({ ...t, id: fresh(t.id) }));
+      });
+      if (c.shownMapId && !c.maps.some(m => m.id === c.shownMapId)) c.shownMapId = null;
+    }
+  }
+
   /* Turn campaign content (new, uploaded or migrated) into a campaign folder. */
   function adopt(content, existing) {
     const c = migrate(content);
+    cleanIds(c);
     c.id = Util.uid();
     c.roomCode = newRoomCode(existing);
     c.combat = emptyCombat();

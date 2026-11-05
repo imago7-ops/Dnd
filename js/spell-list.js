@@ -1,8 +1,8 @@
 'use strict';
 
 /*
- * Spells from the D&D System Reference Document 5.2 (2024 rules), with short summaries in
- * our own words. SRD 5.2 by Wizards of the Coast LLC is licensed under CC-BY-4.0
+ * D&D spells (2024 rules) with short summaries in our own words. Spells from the System
+ * Reference Document 5.2 are used under CC-BY-4.0: SRD 5.2 by Wizards of the Coast LLC is licensed under CC-BY-4.0
  * (https://creativecommons.org/licenses/by/4.0/). Check your book for the full rules.
  *
  * One spell per line: Name|level|school|classes|casting time|range|components|duration|flags|summary

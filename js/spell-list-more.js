@@ -1,6 +1,6 @@
 'use strict';
 
-/* Levels 4–9 of the SRD 5.2 spell list (CC-BY-4.0). Same format as js/spell-list.js. */
+/* More spells (mostly levels 4 to 9, plus some lower-level ones). Same format as js/spell-list.js. */
 const SpellListMore = `
 Blade Ward|0|Abj|BSKW|Action|Self|V, S|1 minute|c|Attackers subtract 1d4 from attack rolls against you.
 Floating Disk|1|Con|W|Action|30 ft|V, S, M|1 hour|r|A 3-ft floating disk of force follows you and carries up to 500 lb.

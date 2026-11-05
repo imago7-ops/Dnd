@@ -1,30 +1,28 @@
 # Changelog
 
-Every update to Campaign Codex, newest first, grouped by release. Version numbers read **version.patch.hotfix**: 3.1.2 is version 3, its first patch, second hotfix. Times are US Central.
+Every update to Campaign Codex, newest first, grouped by release. Version numbers read **version.patch.hotfix**: 3.3.1 is version 3, patch 3, first hotfix. Times are US Central.
 
 "Who" is the person who asked for the change and the one who wrote it. The full code history, with exact changes for each entry, is on GitHub under **Commits**.
 
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
+## 3.3.1: Hotfix
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-05 14:15 | 3.3.1 | Requested by imago7-ops, built by Claude | Hotfixes: attacks set to STR or DEX now update when leveling up changes your scores (before, only the proficiency bonus changed). Attacks made by the character creator show "Auto" instead of "Own" in the STR / DEX picker, since they're worked out from your scores. The campaign guide reads creatures written as "Shark x2", like the notebook does. Uploaded character and campaign files can no longer slip code onto the page through their ids. |
+
 ## 3.3: Fourth Patch
 
 | When | Version | Who | What changed |
 |---|---|---|---|
-| 2026-11-05 15:10 | 3.3 | Requested by imago7-ops, built by Claude | **Download a character as a PDF:** a printable character sheet (ability scores, saves, skills, combat, attacks, proficiencies, features, equipment, notes, and a spell page with slots to tick). Uploading that PDF later brings the character back exactly. **Attacks:** each attack has a STR / DEX choice that sets its to-hit (and the damage bonus) and follows your ability scores. **Spells:** the Spell notes box is gone. Spells from your species are added to the spell list automatically by level (always prepared, not counted toward your limits), and Magic Initiate has a "Choose them" button for its spells. Anything players had written in Spell notes was moved to Notes. Also fixed: uploading a saved character now keeps its Spells tab. |
+| 2026-11-05 13:54 | 3.3 | Requested by imago7-ops, built by Claude | **Download a character as a PDF:** a printable character sheet (ability scores, saves, skills, combat, attacks, proficiencies, features, equipment, notes, and a spell page with slots to tick). Uploading that PDF later brings the character back exactly. **Attacks:** each attack has a STR / DEX choice that sets its to-hit (and the damage bonus) and follows your ability scores. **Spells:** the Spell notes box is gone. Spells from your species are added to the spell list automatically by level (always prepared, not counted toward your limits), and Magic Initiate has a "Choose them" button for its spells. Anything players had written in Spell notes was moved to Notes. Also fixed: uploading a saved character now keeps its Spells tab. |
 
 ## 3.2: Third Patch
 
 | When | Version | Who | What changed |
 |---|---|---|---|
 | 2026-11-03 14:05 | 3.2 | Requested by imago7-ops, built by Claude | **Upload a character from a sheet:** players can upload a fillable PDF character sheet (the official sheet, D&D Beyond downloads and most look-alikes, including "secured" PDFs), which is read straight in the browser, or photos, scans and plain PDFs of a sheet, which the AI reads. A summary shows what was read before the character is added; known spells go onto the Spells tab. Photos and scans need the AWS helper updated (AI-SETUP.md, Part F) and an AI access code for each player. |
-
-## 3.1.2: Hotfix
-
-| When | Version | Who | What changed |
-|---|---|---|---|
-| 2026-11-03 13:18 | 3.1.2 | Requested by imago7-ops, built by Claude | Removed the "Ideas for next steps" list from the README. |
-| 2026-11-03 10:40 | 3.1.2 | Requested by imago7-ops, built by Claude | Features & traits: short descriptions for the older subclasses too (Xanathar's, Tasha's, Sword Coast, the 2014 Player's Handbook and DMG, Fizban's, Van Richten's, Wildemount, Bigby's and Dragonlance), about 350 features in all. |
-| 2026-11-03 10:05 | 3.1.2 | Requested by imago7-ops, built by Claude | **Battle maps from the campaign page:** a new Battle maps button at the top of every campaign opens the full map editor, so DMs can draw maps, place tokens, set fog and choose which map players will see before opening the party room. |
 
 ## 3.1.1: Hotfix
 

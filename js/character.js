@@ -56,7 +56,9 @@ const Character = (() => {
       c[k] = data[k];
     }
     if (!Array.isArray(c.attacks)) c.attacks = [];
-    c.attacks.forEach(a => { a.id ||= Util.uid(); });
+    c.attacks = c.attacks.filter(a => a && typeof a === 'object');
+    c.attacks.forEach(a => { a.id = Util.safeId(a.id); if (a.abil !== 'str' && a.abil !== 'dex') a.abil = ''; });
+    c.id = Util.safeId(c.id);
     if (Store.state.characters.some(x => x.id === c.id)) c.id = Util.uid();
     return c;
   }
@@ -472,7 +474,8 @@ const Character = (() => {
             <select data-atk="abil" class="atk-abil" aria-label="Ability for the attack" title="Strength or Dexterity: sets the to-hit bonus (and the damage bonus)">
               <option value="str" ${a.abil === 'str' ? 'selected' : ''}>STR</option>
               <option value="dex" ${a.abil === 'dex' ? 'selected' : ''}>DEX</option>
-              <option value="" ${a.abil ? '' : 'selected'}>Own</option>
+              ${a.auto && !a.abil ? '<option value="auto" selected title="Worked out from your ability scores and level">Auto</option>' : ''}
+              <option value="" ${a.abil || a.auto ? '' : 'selected'}>Own</option>
             </select>
             <input type="number" data-atk="bonus" value="${Util.esc(a.bonus)}" aria-label="Attack bonus">
             <button class="chip-btn" data-roll="atk:${a.id}" title="Roll to hit">Hit</button>
@@ -552,6 +555,7 @@ const Character = (() => {
       } else if (t.dataset.atk === 'abil') {
         if (e.type !== 'change') return;
         const a = c.attacks.find(x => x.id === t.closest('[data-attack]').dataset.attack);
+        if (t.value === 'auto') return; // already worked out automatically
         a.abil = t.value;
         delete a.auto;
         applyAttackAbility(c, a);
@@ -560,9 +564,13 @@ const Character = (() => {
         const a = c.attacks.find(x => x.id === t.closest('[data-attack]').dataset.attack);
         a[t.dataset.atk] = t.dataset.atk === 'bonus' ? Util.num(t.value, 0) : t.value;
         // Typing your own to-hit number switches the row to "Own".
-        if (t.dataset.atk === 'bonus' && a.abil) { a.abil = ''; const sel = t.closest('[data-attack]').querySelector('[data-atk="abil"]'); if (sel) sel.value = ''; }
+        if (t.dataset.atk === 'bonus' && (a.abil || a.auto)) { a.abil = ''; const sel = t.closest('[data-attack]').querySelector('[data-atk="abil"]'); if (sel) sel.value = ''; }
         // Once hand-edited, an attack is no longer recalculated automatically.
-        if (t.dataset.atk !== 'name') delete a.auto;
+        if (t.dataset.atk !== 'name' && a.auto) {
+          delete a.auto;
+          const sel = t.closest('[data-attack]').querySelector('[data-atk="abil"]');
+          if (sel && sel.value === 'auto') sel.value = '';
+        }
       } else {
         return;
       }
@@ -763,5 +771,5 @@ const Character = (() => {
   /* Numbers the PDF sheet needs, worked out the same way as on screen. */
   const calc = { ABILITIES, SKILLS, mod, prof, saveBonus, skillBonus, passivePerception, initBonus };
 
-  return { mount, active, initBonus, blank, normalize, calc };
+  return { mount, active, initBonus, blank, normalize, calc, applyAttackAbility };
 })();
