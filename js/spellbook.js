@@ -122,7 +122,7 @@ const Spellbook = (() => {
   function caster(c) {
     const L = levelOf(c);
     const cl = typeof Rules !== 'undefined' && R().CLASSES[c.className];
-    if (cl && cl.caster) {
+    if (cl && cl.caster && !(cl.caster.type === 'third' && L < 3)) {
       const k = cl.caster;
       return {
         className: c.className, lists: listsFor(c), abil: k.abil, type: k.type,
@@ -142,6 +142,8 @@ const Spellbook = (() => {
   }
 
   function listsFor(c) {
+    const cl = typeof Rules !== 'undefined' && R().CLASSES[c.className];
+    if (cl && cl.homebrew && cl.caster) return cl.caster.lists.slice(); // homebrew classes pick their lists
     const own = LIST_OF[c.className];
     if (!own) return [];
     if (c.className === 'Bard' && levelOf(c) >= 10) return ['Bard', 'Cleric', 'Druid', 'Wizard'];
