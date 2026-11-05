@@ -5,6 +5,10 @@ const Util = {
   uid() {
     return Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
   },
+  /* An id from an uploaded file, kept only if it's plain letters, numbers, - and _ (so it's safe to put on the page). */
+  safeId(v) {
+    return typeof v === 'string' && /^[A-Za-z0-9_-]{1,60}$/.test(v) ? v : Util.uid();
+  },
   esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => (
       { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]

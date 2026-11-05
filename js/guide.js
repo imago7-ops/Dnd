@@ -148,9 +148,11 @@ const Guide = (() => {
     }
     function creatureLines(text) {
       return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(line => {
-        const m = /^(\d+)\s*[x×]?\s+(.+)$/i.exec(line);
-        const count = m ? Number(m[1]) : 1;
-        const name = m ? m[2] : line;
+        // "3 Goblin", "3x Goblin" or "Goblin x3", the same as the notebook reads them.
+        const a = /^(\d+)\s*[x×]?\s+(.+)$/i.exec(line);
+        const b = !a && /^(.+?)\s*[x×]\s*(\d+)$/i.exec(line);
+        const count = a ? Number(a[1]) : b ? Number(b[2]) : 1;
+        const name = a ? a[2] : b ? b[1] : line;
         return { count, name, stats: statsFor(name) };
       });
     }

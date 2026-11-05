@@ -308,7 +308,7 @@ const SheetPDF = (() => {
         });
         cur.y += 6;
       }
-      if (cur.y + 20 < cur.bottom) cur.p.text(M, cur.y + 6, 'Spell summaries are short forms from the D&D System Reference Document 5.2 (CC-BY-4.0). Check your book for full rules.', { size: 6.5, color: SOFT });
+      if (cur.y + 20 < cur.bottom) cur.p.text(M, cur.y + 6, 'Spell summaries are short, in our own words. Spells from the D&D SRD 5.2 are used under CC-BY-4.0. Check your book for full rules.', { size: 6.5, color: SOFT });
     }
 
     // Footers

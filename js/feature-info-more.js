@@ -66,6 +66,12 @@
     },
 
     /* ---------- Bard ---------- */
+    'College of the Moon': {
+      'Moon\'s Inspiration': 'Two new ways to spend Bardic Inspiration. Inspired Eclipse: when you give an ally a die, you can also turn invisible briefly and teleport up to 30 ft. Lunar Vitality: when one of your spells heals someone, spend a die to heal them more and give them extra speed until the end of their next turn.',
+      'Primal Lore': 'You learn Druidic and one druid cantrip, and gain proficiency in one of Animal Handling, Insight, Medicine, Nature, Perception or Survival.',
+      'Blessing of Moonlight': 'Moonbeam is always prepared for you, and once per long rest you can cast a stronger version that also heals allies near the beam. You glow with faint moonlight (dim light out to 5 ft).',
+      'Eventide\'s Splendor': 'Your Moon\'s Inspiration gets stronger: Inspired Eclipse can also hide and move the ally who got the die, and Lunar Vitality gets a boost. Check Heroes of Faerûn for the details.',
+    },
     'College of Creation': {
       'Mote of Potential': 'Your Bardic Inspiration comes with a mote: on an ability check roll the die twice and pick; on an attack it bursts for thunder damage around the target; on a save the creature also gains temporary HP.',
       'Performance of Creation': 'Action: create a nonmagical item worth up to 20 gp × bard level (Medium, larger at higher levels) that lasts PB hours. Once per long rest, or spend a 2nd-level or higher slot.',
