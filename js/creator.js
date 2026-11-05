@@ -13,7 +13,10 @@ const Creator = (() => {
   const fmt = Util.fmtMod;
   const modOf = s => Math.floor((s - 10) / 2);
   const NEW_BOOKS = ["Player's Handbook (2024)", 'Forgotten Realms: Heroes of Faer\u00fbn'];
-  const OLDER = entry => entry && !NEW_BOOKS.includes(entry.source);
+  const OLDER = entry => entry && entry.source !== 'Homebrew' && !NEW_BOOKS.includes(entry.source);
+  const HB = typeof Homebrew !== 'undefined' ? Homebrew : null;
+  /* The homebrew subclass's combat bonuses (AC, speed, HP, attacks), when one is chosen. */
+  const subCombat = ch => { const cl = R.CLASSES[ch.className]; const e = cl && ch.level >= 3 && ch.subclass ? cl.subclasses[ch.subclass] : null; return e && e.combat ? e.combat : null; };
 
   function fresh() {
     return {
@@ -79,7 +82,7 @@ const Creator = (() => {
     const cl = R.CLASSES[ch.className];
     if (!sp) return 30;
     const base = (sp.lineageSpeed && sp.lineageSpeed[ch.lineage]) || sp.speed;
-    return base + (cl && cl.speedBonus ? cl.speedBonus(ch.level) : 0);
+    return base + (cl && cl.speedBonus ? cl.speedBonus(ch.level) : 0) + ((subCombat(ch) || {}).speedBonus || 0);
   }
 
   function darkvisionOf(ch) {
@@ -96,12 +99,13 @@ const Creator = (() => {
     for (let i = 2; i <= L; i++) hp += Math.max(1, cl.die / 2 + 1 + con);
     if (sp && sp.hpPerLevel) hp += sp.hpPerLevel * L;
     if (feats(ch).includes('Tough')) hp += 2 * L;
+    hp += ((subCombat(ch) || {}).hpPerLevel || 0) * L;
     return hp;
   }
 
   function acOf(ch, scores) {
     const ac = R.CLASSES[ch.className].ac;
-    return acFor(ac, scores);
+    return acFor(ac, scores) + ((subCombat(ch) || {}).acBonus || 0);
   }
   function acFor(ac, scores) {
     const dex = modOf(scores.dex);
@@ -157,6 +161,7 @@ const Creator = (() => {
       out.push({ id: Util.uid(), name, auto: { kind, die, monk: isMonk && (name === 'Spear' || name === 'Dagger') } });
     });
     if (!isMonk) out.push({ id: Util.uid(), name: 'Unarmed Strike', auto: { kind: 'unarmed' } });
+    ((subCombat(ch) || {}).attacks || []).forEach(a => out.push({ id: Util.uid(), name: a.name, fromSub: true, auto: { kind: a.abil, die: a.die } }));
     return out.map(a => recalcAttack(a, scores, ch.level, ch.className));
   }
 
@@ -302,6 +307,9 @@ const Creator = (() => {
     if (ch.species === 'Tiefling') granted.push({ n: 'Thaumaturgy', p: 'a', src: 'Tiefling' });
     c.spellbook = { list: granted, used: {}, arcana: {}, pactUsed: 0 };
     c.creation = { rules: '2024', ...JSON.parse(JSON.stringify(ch)) };
+    // Homebrew used by this character travels with it.
+    const hb = HB && HB.snapshot({ className: ch.className, subclass: c.subclass, species: ch.species, background: ch.background });
+    if (hb) c.homebrew = hb;
     return c;
   }
 
@@ -345,11 +353,18 @@ const Creator = (() => {
       if (i === 1 && ch.bgMode === '21' && (!ch.plus2 || !ch.plus1 || ch.plus2 === ch.plus1)) return 'Pick two different abilities for +2 and +1.';
       if (i === 2 && !ch.className) return 'Choose a class to continue.';
       if (i === 2) {
-        const n = R.CLASSES[ch.className].skills.n;
+        const n = skillCount(ch);
         if (ch.skills.length !== n) return `Choose ${n} class skills (${ch.skills.length} picked).`;
         if (R.SPECIES[ch.species].extraSkill && !ch.extraSkill) return `Choose your ${ch.species} skill.`;
       }
       return '';
+    }
+    /* How many class skills to pick: fewer if the background already covers some of the class's list. */
+    function skillCount(c) {
+      const cl = R.CLASSES[c.className];
+      const bgSkills = (R.BACKGROUNDS[c.background] || { skills: [] }).skills;
+      const open = cl.skills.from.filter(s => !bgSkills.includes(s) && s !== c.extraSkill).length;
+      return Math.min(cl.skills.n, open);
     }
     const reachable = i => STEPS.slice(0, i).every((_, j) => !problem(j));
 
@@ -394,6 +409,25 @@ const Creator = (() => {
       </button>`;
     }
 
+    /* Homebrew options for a step, plus a card to make a new one. */
+    function hbGroup(type, cards) {
+      if (!HB) return '';
+      const what = { class: 'class', species: 'species', background: 'background' }[type];
+      return `<h3 class="group-title hb-group-title">Homebrew <button class="link-btn" data-hb-manage>Your homebrew</button></h3>
+        <div class="opt-grid">${cards.join('')}
+          <button class="opt opt-new" data-hb-new="${type}"><span class="opt-title">+ Create a homebrew ${what}</span><span class="opt-meta">Make your own. It stays in your options until you delete it.</span></button>
+        </div>`;
+    }
+    /* Edit and delete buttons for the chosen homebrew. */
+    function hbTools(type, name) {
+      if (!HB) return '';
+      const d = HB.find(type, name, type === 'subclass' ? ch.className : undefined);
+      if (!d) return Rules && HB.isHomebrew(type, name) ? '<p class="detail-note">Homebrew carried by one of your characters.</p>' : '';
+      return `<div class="hb-tools"><span class="hb-badge">Homebrew</span>
+        <button class="btn btn-small" data-hb-edit="${esc(d.id)}">Edit</button>
+        <button class="btn btn-small btn-ghost-danger" data-hb-del="${esc(d.id)}">Delete</button></div>`;
+    }
+
     function select(name, options, value, label, extra = '') {
       return `<label class="field"><span>${label}</span>
         <select data-set="${name}" ${extra}>
@@ -402,15 +436,18 @@ const Creator = (() => {
     }
 
     function speciesStep() {
-      const grid = Object.entries(R.SPECIES).map(([k, s]) => card(k, k,
+      const one = ([k, s]) => card(k, k,
         `${s.size.join(' or ')}, speed ${s.speed} ft${s.darkvision ? `, darkvision ${s.darkvision} ft` : ''}`,
-        s.blurb, ch.species === k)).join('');
+        s.blurb, ch.species === k);
+      const grid = Object.entries(R.SPECIES).filter(([, s]) => !s.homebrew).map(one).join('');
+      const hbg = hbGroup('species', Object.entries(R.SPECIES).filter(([, s]) => s.homebrew).map(one));
       let detail = '';
       if (ch.species) {
         const sp = R.SPECIES[ch.species];
         detail = `
           <div class="opt-detail panel">
             <h2>${esc(ch.species)}</h2>
+            ${hbTools('species', ch.species)}
             <div class="detail-controls">
               ${sp.lineages ? select('lineage', Object.keys(sp.lineages).map(l => [l, ch.species === 'Dragonborn' ? `${l} (${sp.lineages[l]})` : l]), ch.lineage, sp.lineageLabel) : ''}
               ${sp.size.length > 1 ? select('size', sp.size.map(s => [s, s]), ch.size, 'Size') : ''}
@@ -424,13 +461,13 @@ const Creator = (() => {
           </div>`;
       }
       return `<h2 class="step-title">Choose a species</h2>
-        <div class="opt-grid">${grid}</div>${detail}`;
+        <div class="opt-grid">${grid}</div>${hbg}${detail}`;
     }
 
     function backgroundStep() {
-      const grid = Object.entries(R.BACKGROUNDS).map(([k, b]) => card(k, k,
-        `${b.skills.map(s => R.SKILL_NAME[s]).join(', ')}`,
-        `${b.feat}`, ch.background === k)).join('');
+      const one = ([k, b]) => card(k, k, `${b.skills.map(s => R.SKILL_NAME[s]).join(', ')}`, `${b.feat}`, ch.background === k);
+      const grid = Object.entries(R.BACKGROUNDS).filter(([, b]) => !b.homebrew).map(one).join('');
+      const hbg = hbGroup('background', Object.entries(R.BACKGROUNDS).filter(([, b]) => b.homebrew).map(one));
       let detail = '';
       if (ch.background) {
         const bg = R.BACKGROUNDS[ch.background];
@@ -438,6 +475,7 @@ const Creator = (() => {
         detail = `
           <div class="opt-detail panel">
             <h2>${esc(ch.background)}</h2>
+            ${hbTools('background', ch.background)}
             <div class="detail-block">
               <h3>Ability score increase</h3>
               <p class="detail-note">This background raises ${bg.abil.map(a => R.ABIL_NAME[a]).join(', ')}. Split it one of two ways.${!ch.bgTouched ? ' The suggested picks follow your class once you choose one.' : ''}</p>
@@ -459,22 +497,24 @@ const Creator = (() => {
           </div>`;
       }
       return `<h2 class="step-title">Choose a background</h2>
-        <div class="opt-grid">${grid}</div>${detail}`;
+        <div class="opt-grid">${grid}</div>${hbg}${detail}`;
     }
 
     function classStep() {
-      const grid = Object.entries(R.CLASSES).map(([k, c]) => card(k, k,
-        `d${c.die} hit die, ${c.primary}`, c.blurb, ch.className === k)).join('');
+      const one = ([k, c]) => card(k, k, `d${c.die} hit die, ${c.primary}`, c.blurb, ch.className === k);
+      const grid = Object.entries(R.CLASSES).filter(([, c]) => !c.homebrew).map(one).join('');
+      const hbg = hbGroup('class', Object.entries(R.CLASSES).filter(([, c]) => c.homebrew).map(one));
       let detail = '';
       if (ch.className) {
         const cl = R.CLASSES[ch.className];
         const sp = R.SPECIES[ch.species];
         const bgSkills = R.BACKGROUNDS[ch.background].skills;
         const taken = new Set([...bgSkills, ch.extraSkill].filter(Boolean));
-        const n = cl.skills.n;
+        const n = skillCount(ch);
         detail = `
           <div class="opt-detail panel">
             <h2>${esc(ch.className)}</h2>
+            ${hbTools('class', ch.className)}
             <dl class="facts">
               <dt>Hit die</dt><dd>d${cl.die}</dd>
               <dt>Saving throws</dt><dd>${cl.saves.map(a => R.ABIL_NAME[a]).join(', ')}</dd>
@@ -508,7 +548,7 @@ const Creator = (() => {
         void taken;
       }
       return `<h2 class="step-title">Choose a class</h2>
-        <div class="opt-grid">${grid}</div>${detail}`;
+        <div class="opt-grid">${grid}</div>${hbg}${detail}`;
     }
 
     function levelStep() {
@@ -516,7 +556,8 @@ const Creator = (() => {
       const L = ch.level;
       const subs = Object.entries(cl.subclasses);
       const core = subs.filter(([, e]) => e.source === "Player's Handbook (2024)");
-      const more = subs.filter(([, e]) => e.source !== "Player's Handbook (2024)").sort((a, b) => a[0].localeCompare(b[0]));
+      const more = subs.filter(([, e]) => e.source !== "Player's Handbook (2024)" && !e.homebrew).sort((a, b) => a[0].localeCompare(b[0]));
+      const mine = subs.filter(([, e]) => e.homebrew);
       const locked = L < 3;
       const preview = classFeatureLines(ch);
       return `<h2 class="step-title">Choose a level and subclass</h2>
@@ -535,17 +576,22 @@ const Creator = (() => {
 
         <h3 class="sub-title">${ch.className} subclass</h3>
         ${locked ? `<p class="detail-note">Every class picks a subclass at level 3. Raise your level to choose one now, or pick it on your sheet later.</p>` : ''}
-        <h4 class="group-title">Player's Handbook (2024)</h4>
+        ${core.length ? `<h4 class="group-title">Player's Handbook (2024)</h4>
         <div class="opt-grid subs">
           ${core.map(([name]) => subCard(name, '', locked)).join('')}
-        </div>
-        <h4 class="group-title">Other official books</h4>
+        </div>` : ''}
+        ${more.length ? `<h4 class="group-title">Other official books</h4>
         <div class="opt-grid subs">
           ${more.map(([name, e]) => subCard(name, e.source, locked)).join('')}
-        </div>
+        </div>` : ''}
+        ${HB ? `<h4 class="group-title">Homebrew</h4>
+        <div class="opt-grid subs">
+          ${mine.map(([name]) => subCard(name, 'Homebrew', locked)).join('')}
+          <button class="opt opt-new" data-hb-new="subclass"><span class="opt-title">+ Create a homebrew subclass</span><span class="opt-meta">Your own ${esc(ch.className)} subclass. It stays in your options until you delete it.</span></button>
+        </div>` : ''}
         ${locked ? '' : `<h4 class="group-title">Something else</h4>
         <div class="opt-grid subs">
-          ${card('__other__', 'Other / homebrew', 'Type in any subclass name.', '', ch.subMode === 'other', false, 'sub')}
+          ${card('__other__', 'Type in a name', 'A subclass from another book, without details. Use Homebrew above to make a full one.', '', ch.subMode === 'other', false, 'sub')}
           ${card('', 'Decide later', 'Leave the subclass blank for now.', '', ch.subMode !== 'other' && !ch.subclass, false, 'sub')}
         </div>`}
         ${locked ? '' : subDetail(cl)}
@@ -563,7 +609,7 @@ const Creator = (() => {
     function subDetail(cl) {
       if (ch.subMode === 'other') {
         return `<div class="opt-detail panel">
-          <h3>Other / homebrew subclass</h3>
+          <h3>Subclass by name</h3>
           <label class="field name-field"><span>Subclass name</span>
             <input data-set="subOther" value="${esc(ch.subOther)}" placeholder="e.g. Oath of the Tides" autocomplete="off">
           </label>
@@ -574,7 +620,8 @@ const Creator = (() => {
       if (!e) return '';
       return `<div class="opt-detail panel">
         <h3>${esc(ch.subclass)}</h3>
-        <p class="detail-note">From ${esc(e.source)}.${OLDER(e) ? ' Written for the 2014 rules: features it gave at levels 1 or 2 arrive at level 3 here, so check the book for exact wording.' : ''}${!e.details ? ' Its feature list isn\'t built in yet; your sheet marks the levels where its features arrive so you can fill them in from the book.' : ''}</p>
+        ${e.homebrew ? hbTools('subclass', ch.subclass) : ''}
+        <p class="detail-note">${e.homebrew ? `Your homebrew.${e.combat && (e.combat.acBonus || e.combat.speedBonus || e.combat.hpPerLevel || e.combat.attacks.length) ? ` In combat: ${[e.combat.acBonus && `+${e.combat.acBonus} AC`, e.combat.speedBonus && `+${e.combat.speedBonus} ft speed`, e.combat.hpPerLevel && `+${e.combat.hpPerLevel} HP per level`, ...e.combat.attacks.map(a => `${esc(a.name)} (${esc(a.die)})`)].filter(Boolean).join(', ')}.` : ''}` : `From ${esc(e.source)}.`}${OLDER(e) ? ' Written for the 2014 rules: features it gave at levels 1 or 2 arrive at level 3 here, so check the book for exact wording.' : ''}${!e.details ? ' Its feature list isn\'t built in yet; your sheet marks the levels where its features arrive so you can fill them in from the book.' : ''}</p>
         <ul class="trait-list compact">
           ${Object.entries(e.features).map(([lv, f]) => `<li><b>Level ${lv}:</b> ${esc(f.join(', '))}</li>`).join('')}
         </ul>
@@ -737,6 +784,25 @@ const Creator = (() => {
       const btn = e.target.closest('button');
       if (!btn || btn.disabled) return;
       const d = btn.dataset;
+      if (HB && d.hbManage !== undefined) return HB.manage({ onClose: afterHomebrew });
+      if (HB && d.hbNew) return HB.edit(d.hbNew, null, { parent: ch.className, onSave: def => chooseHomebrew(def) });
+      if (HB && d.hbEdit) {
+        const x = HB.byId(d.hbEdit);
+        if (x) HB.edit(x.type, x, { onSave: def => chooseHomebrew(def, x) });
+        return;
+      }
+      if (HB && d.hbDel) {
+        const x = HB.byId(d.hbDel);
+        if (!x) return;
+        if (!btn.dataset.armed) {
+          btn.dataset.armed = '1'; btn.textContent = 'Click again to delete';
+          setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = 'Delete'; } }, 3000);
+          return;
+        }
+        HB.remove(x.id);
+        Util.toast(`Deleted ${x.name} from your homebrew.`);
+        return afterHomebrew();
+      }
       if (d.pick !== undefined) {
         if (step === 0) pickSpecies(d.pick);
         if (step === 1) { if (ch.background !== d.pick) { ch.background = d.pick; ch.bgTouched = false; defaultBgBonus(); } }
@@ -843,6 +909,30 @@ const Creator = (() => {
     el.addEventListener('keydown', e => {
       if (e.key === 'Enter' && e.target.dataset.set === 'name') el.querySelector('[data-action="next"]').click();
     });
+
+    /* A homebrew was just made or edited: choose it on this step. */
+    function chooseHomebrew(def, old) {
+      if (def.type === 'species') { ch.species = null; pickSpecies(def.name); }
+      if (def.type === 'background') { ch.background = def.name; ch.bgTouched = false; defaultBgBonus(); }
+      if (def.type === 'class') { ch.className = null; pickClass(def.name); }
+      if (def.type === 'subclass') {
+        if (def.parent !== ch.className) Util.toast(`${def.name} is a ${def.parent} subclass, so it shows up when you choose ${def.parent}.`);
+        else if (ch.level < 3) Util.toast(`Saved. Raise the level to 3 or higher to choose ${def.name}.`);
+        else { ch.subMode = 'list'; ch.subclass = def.name; }
+      }
+      void old;
+      afterHomebrew();
+    }
+    /* Homebrew changed (edited, deleted or uploaded): drop choices that no longer exist. */
+    function afterHomebrew() {
+      if (ch.species && !R.SPECIES[ch.species]) { ch.species = null; ch.lineage = null; ch.extraSkill = null; }
+      if (ch.background && !R.BACKGROUNDS[ch.background]) { ch.background = null; ch.plus1 = ch.plus2 = null; }
+      if (ch.className && !R.CLASSES[ch.className]) { ch.className = null; ch.skills = []; ch.subclass = ''; ch.base = null; }
+      if (ch.className && ch.subMode !== 'other' && ch.subclass && !R.CLASSES[ch.className].subclasses[ch.subclass]) ch.subclass = '';
+      if (ch.className) ch.skills = ch.skills.filter(s => R.CLASSES[ch.className].skills.from.includes(s));
+      while (step > 0 && !reachable(step)) step--;
+      if (el.isConnected) refresh();
+    }
 
     function rollSet() {
       return Array.from({ length: 6 }, () => Dice.evaluate('4d6kh3').total);

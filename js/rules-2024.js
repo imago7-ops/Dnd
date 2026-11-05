@@ -659,6 +659,7 @@ const Rules = (() => {
   function spellSlots(caster, level) {
     if (caster.type === 'full') return FULL_SLOTS[level - 1];
     if (caster.type === 'half') return FULL_SLOTS[Math.ceil(level / 2) - 1];
+    if (caster.type === 'third') return level < 3 ? [] : FULL_SLOTS[Math.ceil(level / 3) - 1];
     if (caster.type === 'pact') {
       const count = level < 2 ? 1 : level < 11 ? 2 : level < 17 ? 3 : 4;
       const slotLevel = Math.min(5, Math.ceil(level / 2));

@@ -117,6 +117,7 @@ const Character = (() => {
   function upload(el) {
     const add = (c, msg) => {
       Store.state.characters.push(c);
+      if (typeof Homebrew !== 'undefined') Homebrew.apply();
       Store.state.activeCharacterId = c.id;
       Store.save();
       mountSheet(el);
@@ -209,7 +210,7 @@ const Character = (() => {
   function featuresHTML(c) {
     const text = String(c.features || '').trim();
     if (!text) return '<p class="empty-line">No features yet. Use <b>Edit text</b> to add your class features, species traits and feats.</p>';
-    const look = name => (typeof FeatureInfo !== 'undefined' ? FeatureInfo.lookup(name, c.className, c.subclass) : '');
+    const look = name => (typeof Homebrew !== 'undefined' && Homebrew.describe(name, c.className, c.subclass)) || (typeof FeatureInfo !== 'undefined' ? FeatureInfo.lookup(name, c.className, c.subclass) : '');
     const item = (name, desc, cls = '') => desc
       ? `<details class="feat-item ${cls}"><summary><span class="feat-name">${Util.esc(name)}</span></summary><p>${Util.esc(desc)}</p></details>`
       : `<div class="feat-item plain ${cls}"><span class="feat-name">${Util.esc(name)}</span></div>`;
@@ -292,6 +293,7 @@ const Character = (() => {
               <div class="menu-list">
                 <button data-action="new">New character</button>
                 <button data-action="upload">Upload a character</button>
+                <button data-action="homebrew">Your homebrew</button>
                 <button data-action="download">Download this character</button>
                 <button class="danger" data-action="delete">Delete this character</button>
               </div>
@@ -332,9 +334,9 @@ const Character = (() => {
               <span>Heroic inspiration</span>
             </label>
             <p class="fp-hint">Changing your level opens the level-up steps.</p>
-            <datalist id="dl-classes">${Object.keys(CLASSES).map(x => `<option value="${x}">`).join('')}</datalist>
+            <datalist id="dl-classes">${[...new Set([...Object.keys(CLASSES), ...Object.keys(Rules.CLASSES)])].map(x => `<option value="${Util.esc(x)}">`).join('')}</datalist>
             <datalist id="dl-subclasses">${subclassOptions(c.className)}</datalist>
-            <datalist id="dl-species">${SPECIES.map(x => `<option value="${x}">`).join('')}</datalist>
+            <datalist id="dl-species">${[...new Set([...SPECIES, ...Object.keys(Rules.SPECIES)])].map(x => `<option value="${Util.esc(x)}">`).join('')}</datalist>
             <datalist id="dl-align">${ALIGNMENTS.map(x => `<option value="${x}">`).join('')}</datalist>`)}
 
           ${panel('abilities', `
@@ -548,8 +550,9 @@ const Character = (() => {
           });
           el.querySelector('[data-ref="attacks"]').innerHTML = attacksHTML(c);
         }
-        if (t.dataset.bind === 'className' && CLASSES[t.value] && /^\d+d\d+$/.test(c.hitDice)) {
-          c.hitDice = `${c.level}d${CLASSES[t.value]}`;
+        const die = CLASSES[t.value] || (Rules.CLASSES[t.value] && Rules.CLASSES[t.value].die);
+        if (t.dataset.bind === 'className' && die && /^\d+d\d+$/.test(c.hitDice)) {
+          c.hitDice = `${c.level}d${die}`;
           el.querySelector('[data-bind="hitDice"]').value = c.hitDice;
         }
       } else if (t.dataset.atk === 'abil') {
@@ -619,6 +622,7 @@ const Character = (() => {
           return;
         }
         case 'new': return createNew(el);
+        case 'homebrew': return Homebrew.manage({ onClose: () => { if (el.isConnected) mountSheet(el); } });
         case 'upload': return upload(el);
         case 'download':
           if (typeof SheetPDF === 'undefined') { Util.download(`${Util.slug(c.name || 'character')}.json`, c); return Util.toast('Character downloaded.'); }

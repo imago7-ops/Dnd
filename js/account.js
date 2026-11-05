@@ -172,6 +172,8 @@ const Account = (() => {
     (s.characters || []).forEach(c => c && c.id && out.set(`character#${c.id}`, c));
     campaignsArray().forEach(c => c && c.id && out.set(`campaign#${c.id}`, c));
     out.set('prefs#main', prefsOf(s));
+    // Homebrew is its own document, so it follows you to every device (and the server needs no change).
+    if (s.homebrew && Array.isArray(s.homebrew.items)) out.set('prefs#homebrew', s.homebrew);
     return out;
   }
 
@@ -179,6 +181,11 @@ const Account = (() => {
   function apply(doc) {
     const s = Store.state;
     if (doc.kind === 'prefs') {
+      if (doc.id === 'homebrew') {
+        if (doc.data && Array.isArray(doc.data.items)) s.homebrew = { items: doc.data.items };
+        else if (doc.deleted) s.homebrew = { items: [] };
+        return;
+      }
       if (doc.data) Object.assign(s, prefsOf(doc.data));
       return;
     }
@@ -219,7 +226,7 @@ const Account = (() => {
       for (const doc of d.docs || []) {
         const key = `${doc.kind}#${doc.id}`;
         if (!initial && (meta.revs[key] || 0) >= doc.rev) continue;
-        if (doc.kind === 'prefs' && !initial) { meta.revs[key] = doc.rev; continue; } // each device keeps its own page and role
+        if (key === 'prefs#main' && !initial) { meta.revs[key] = doc.rev; continue; } // each device keeps its own page and role
         const local = cur.get(key);
         const dirty = local ? hash(JSON.stringify(local)) !== meta.hashes[key] : key in meta.hashes;
         if (dirty && !initial) continue; // this device's newer change gets sent next and wins
@@ -399,7 +406,15 @@ const Account = (() => {
     for (const doc of d.docs || []) {
       const key = `${doc.kind}#${doc.id}`;
       // A character or campaign that's both here and in the account: the account's copy wins.
-      if (doc.kind === 'prefs' && choice === 'add' && Store.state.role) { meta.revs[key] = doc.rev; continue; }
+      if (key === 'prefs#main' && choice === 'add' && Store.state.role) { meta.revs[key] = doc.rev; continue; }
+      if (key === 'prefs#homebrew' && choice === 'add') {
+        // Keep this browser's homebrew too: both lists, then send the result to the account.
+        const here = (Store.state.homebrew && Array.isArray(Store.state.homebrew.items)) ? Store.state.homebrew.items : [];
+        const there = doc.data && Array.isArray(doc.data.items) ? doc.data.items : [];
+        Store.state.homebrew = { items: [...there, ...here.filter(x => x && !there.some(y => y && y.id === x.id))] };
+        meta.revs[key] = doc.rev;
+        continue; // no saved hash, so the merged list is sent next
+      }
       apply(doc);
       meta.revs[key] = doc.rev;
       const now = currentDocs().get(key);

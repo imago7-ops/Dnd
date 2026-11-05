@@ -6,6 +6,12 @@ Every update to Campaign Codex, newest first, grouped by release. Version number
 
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
+## 4.0: Version 4
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-05 14:40 | 4.0 | Requested by imago7-ops, built by Claude | **Homebrew:** players can make their own classes, subclasses, species and backgrounds while creating a character. **Class:** name and description, hit die, main ability and saving throws, skill choices, armor, weapon and tool proficiencies, starting equipment, armor class and weapons, features by level, and optional spellcasting (full, half, third or Pact Magic caster). **Subclass:** for any class, with combat bonuses (AC, speed, hit points per level, attacks) and features at the class's subclass levels. **Species:** sizes, speed, darkvision and unique features. **Background:** ability scores, two skills and an origin feat (official or new). Homebrew stays as an option until you delete it, syncs to your account, works with level up, the Spells tab and Features & traits, and can be downloaded and uploaded to share. Characters keep a copy of their homebrew. |
+
 ## 3.3.1: Hotfix
 
 | When | Version | Who | What changed |

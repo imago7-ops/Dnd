@@ -25,7 +25,10 @@ const LevelUp = (() => {
     const feats = [];
     if (c.creation) feats.push(...Creator.feats(c.creation));
     Object.values(c.asiLog || {}).forEach(x => { if (x.feat) feats.push(x.feat.trim()); });
-    return { cl, die, sp: spName ? R.SPECIES[spName] : null, feats };
+    // Homebrew subclasses can add AC, speed and hit points.
+    const subEntry = cl && c.subclass && Util.num(c.level, 1) >= 3 ? cl.subclasses[c.subclass] : null;
+    const combat = (subEntry && subEntry.combat) || { acBonus: 0, speedBonus: 0, hpPerLevel: 0, attacks: [] };
+    return { cl, die, sp: spName ? R.SPECIES[spName] : null, feats, combat };
   }
   const hasFeat = (feats, name) => feats.some(f => f.toLowerCase() === name.toLowerCase());
 
@@ -40,9 +43,9 @@ const LevelUp = (() => {
     return Array.from({ length: level }, (_, i) => (i === 0 ? die : die / 2 + 1));
   }
 
-  function hpFormula(log, level, scores, sp, feats) {
+  function hpFormula(log, level, scores, sp, feats, combat) {
     const dice = log.slice(0, level).reduce((a, b) => a + b, 0);
-    const perLevel = modOf(scores.con) + (sp && sp.hpPerLevel ? sp.hpPerLevel : 0) + (hasFeat(feats, 'Tough') ? 2 : 0);
+    const perLevel = modOf(scores.con) + (sp && sp.hpPerLevel ? sp.hpPerLevel : 0) + (hasFeat(feats, 'Tough') ? 2 : 0) + ((combat && combat.hpPerLevel) || 0);
     return dice + level * perLevel;
   }
 
@@ -99,7 +102,7 @@ const LevelUp = (() => {
     const newScores = x.abilities;
 
     // Hit points: new dice, plus Con changes applied to every level (2024 rule).
-    const delta = hpFormula(log, to, newScores, after.sp, after.feats) - hpFormula(oldLog, from, oldScores, before.sp, before.feats);
+    const delta = hpFormula(log, to, newScores, after.sp, after.feats, after.combat) - hpFormula(oldLog, from, oldScores, before.sp, before.feats, before.combat);
     x.hp.max = Math.max(1, Util.num(x.hp.max, 1) + delta);
     x.hp.current = to > from
       ? Util.num(x.hp.current, 0) + Math.max(0, delta)
@@ -116,6 +119,20 @@ const LevelUp = (() => {
     if (cl) {
       if (cl.speedBonus) x.speed = Util.num(x.speed, 30) + cl.speedBonus(to) - cl.speedBonus(from);
       x.ac = Util.num(x.ac, 10) + Creator.acFor(cl.ac, newScores) - Creator.acFor(cl.ac, oldScores);
+    }
+    x.speed = Util.num(x.speed, 30) + after.combat.speedBonus - before.combat.speedBonus;
+    x.ac = Util.num(x.ac, 10) + after.combat.acBonus - before.combat.acBonus;
+    // Attacks a homebrew subclass gives: added when it's gained, taken away when it's lost.
+    if (x.subclass !== src.subclass || (from < 3) !== (to < 3)) {
+      x.attacks = x.attacks.filter(a => !a.fromSub);
+      after.combat.attacks.forEach(a => x.attacks.push({ id: Util.uid(), name: a.name, fromSub: true, auto: { kind: a.abil, die: a.die } }));
+    }
+    if (typeof Homebrew !== 'undefined') {
+      const snap = Homebrew.snapshot({ className: x.className, subclass: x.subclass, species: '', background: '' });
+      const hb = { ...(x.homebrew || {}) };
+      delete hb.subclass;
+      if (snap && snap.subclass) hb.subclass = snap.subclass;
+      x.homebrew = Object.keys(hb).length ? hb : undefined;
     }
     const alertBefore = hasFeat(before.feats, 'Alert') ? oldPb : 0;
     const alertAfter = hasFeat(after.feats, 'Alert') ? newPb : 0;
@@ -352,7 +369,7 @@ const LevelUp = (() => {
             <select data-act="subclass" aria-label="Subclass">
               <option value="" ${!plan.subclass && plan.subMode !== 'other' ? 'selected' : ''}>Decide later</option>
               ${Object.entries(cl.subclasses).map(([n, e]) => `<option value="${esc(n)}" ${plan.subclass === n && plan.subMode !== 'other' ? 'selected' : ''}>${esc(n)} (${esc(e.source)})</option>`).join('')}
-              <option value="__other__" ${plan.subMode === 'other' ? 'selected' : ''}>Other / homebrew…</option>
+              <option value="__other__" ${plan.subMode === 'other' ? 'selected' : ''}>Type in a name…</option>
             </select>
             ${plan.subMode === 'other' ? `<input class="lu-text" data-act="subother" value="${esc(plan.subOther)}" placeholder="Subclass name" aria-label="Homebrew subclass name">` : ''}
           </section>` : ''}
