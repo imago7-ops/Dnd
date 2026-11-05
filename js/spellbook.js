@@ -46,6 +46,78 @@ const Spellbook = (() => {
     return b;
   }
 
+  /*
+   * Spells your species gives you: always prepared and never counted toward class limits.
+   * [name, character level it arrives at]. Matched against the Species field, e.g. "Elf (High Elf)".
+   */
+  const SPECIES_SPELLS = {
+    Aasimar: [['Light', 1]],
+    Tiefling: [['Thaumaturgy', 1]],
+    Abyssal: [['Poison Spray', 1], ['Ray of Sickness', 3], ['Hold Person', 5]],
+    Chthonic: [['Chill Touch', 1], ['False Life', 3], ['Ray of Enfeeblement', 5]],
+    Infernal: [['Fire Bolt', 1], ['Hellish Rebuke', 3], ['Darkness', 5]],
+    Drow: [['Dancing Lights', 1], ['Faerie Fire', 3], ['Darkness', 5]],
+    'High Elf': [['Prestidigitation', 1], ['Detect Magic', 3], ['Misty Step', 5]],
+    'Wood Elf': [['Druidcraft', 1], ['Longstrider', 3], ['Pass without Trace', 5]],
+    'Forest Gnome': [['Minor Illusion', 1], ['Speak with Animals', 1]],
+    'Rock Gnome': [['Mending', 1], ['Prestidigitation', 1]],
+  };
+  const SPELL_LEVELS = { 'Ray of Sickness': 1, 'Hold Person': 2, 'False Life': 1, 'Ray of Enfeeblement': 2, 'Hellish Rebuke': 1, Darkness: 2, 'Faerie Fire': 1, 'Detect Magic': 1, 'Misty Step': 2, Longstrider: 1, 'Pass without Trace': 2, 'Speak with Animals': 1 };
+
+  function speciesGrants(c) {
+    const sp = String(c.species || '');
+    const L = levelOf(c);
+    const out = [];
+    Object.entries(SPECIES_SPELLS).forEach(([key, list]) => {
+      if (!new RegExp(`\\b${key}\\b`, 'i').test(sp)) return;
+      list.forEach(([n, at]) => { if (L >= at && !out.some(x => x.n === n)) out.push({ n, src: key }); });
+    });
+    return out;
+  }
+
+  /* Add species spells the character should have (and drop ones from a species they no longer are). */
+  function syncGranted(c) {
+    const b = book(c);
+    const want = speciesGrants(c);
+    const before = b.list.length;
+    b.list = b.list.filter(e => e.auto !== 'species' || want.some(w => w.n === e.n));
+    let changed = b.list.length !== before;
+    want.forEach(w => {
+      const have = b.list.find(e => e.n.toLowerCase() === w.n.toLowerCase());
+      if (have) {
+        if (!have.src || have.p !== 'a') { have.src = have.src || w.src; have.p = 'a'; changed = true; }
+        return;
+      }
+      const known = typeof SpellList !== 'undefined' && SpellList.byName(w.n);
+      b.list.push(known ? { n: known.name, p: 'a', src: w.src, auto: 'species' }
+        : { n: w.n, lvl: SPELL_LEVELS[w.n] || 1, custom: true, p: 'a', src: w.src, auto: 'species' });
+      changed = true;
+    });
+    return changed;
+  }
+
+  /* Magic Initiate feats on this character: from the background, or named in the features. */
+  function magicInitiates(c) {
+    const set = new Set();
+    const bg = typeof Rules !== 'undefined' && R().BACKGROUNDS && R().BACKGROUNDS[c.background];
+    const add = f => { const m = /^Magic Initiate \((\w+)\)/.exec(f || ''); if (m) set.add(m[1]); };
+    if (bg) add(bg.feat);
+    (String(c.features || '').match(/Magic Initiate \((Cleric|Druid|Wizard)\)/g) || []).forEach(add);
+    return [...set];
+  }
+
+  function grantsHTML(c) {
+    const b = book(c);
+    return magicInitiates(c).map(cls => {
+      const src = `Magic Initiate (${cls})`;
+      const mine = b.list.filter(e => e.src === src);
+      const cantrips = mine.filter(e => levelOfEntry(e) === 0).length, firsts = mine.length - cantrips;
+      if (cantrips >= 2 && firsts >= 1) return '';
+      return `<div class="sb-grant"><span><b>${esc(src)}:</b> choose two ${cls.toLowerCase()} cantrips and one level 1 ${cls.toLowerCase()} spell (${cantrips} of 2 cantrips, ${firsts} of 1 spell chosen). They don't count toward your limits.</span>
+        <button class="btn" data-sb="pick-mi" data-cls="${esc(cls)}">Choose them</button></div>`;
+    }).join('');
+  }
+
   /* What kind of caster this character is, from class, subclass and level. */
   function caster(c) {
     const L = levelOf(c);
@@ -278,10 +350,9 @@ const Spellbook = (() => {
     host.innerHTML = `<div class="sb">
       ${headHTML(c)}
       ${metaHTML(c)}
+      ${grantsHTML(c)}
       <div class="sb-levels" data-ref="sbLevels">${levelsHTML(c)}</div>
       ${slotEditorHTML(c)}
-      <label class="fp-text sb-notes"><span class="fp-title">Spell notes</span>
-        <textarea data-bind="spells" rows="4" placeholder="Anything else about your spells: species or feat spells, spellbook notes…">${esc(c.spells || '')}</textarea></label>
       <p class="muted small sb-credit">Spell summaries are from the D&amp;D System Reference Document 5.2 (CC-BY-4.0), in short form: check your book for full rules.</p>
     </div>`;
   }
@@ -298,6 +369,7 @@ const Spellbook = (() => {
   function mount(host, c) {
     const save = () => { Store.save(); };
     const redraw = () => { const y = window.scrollY; render(host, c); window.scrollTo(0, y); };
+    if (syncGranted(c)) save();
     render(host, c);
 
     host.addEventListener('click', e => {
@@ -310,6 +382,7 @@ const Spellbook = (() => {
       const s = stats(c);
       const a = btn.dataset.sb;
       if (a === 'pick') return openPicker(c, () => { save(); redraw(); }, btn.dataset.level);
+      if (a === 'pick-mi') return openPicker(c, () => { save(); redraw(); }, 'all', { cls: btn.dataset.cls, src: `Magic Initiate (${btn.dataset.cls})` });
       if (a === 'long') {
         b.used = {}; b.pactUsed = 0; b.arcana = {};
         save(); redraw();
@@ -412,7 +485,7 @@ const Spellbook = (() => {
   }
 
   /* ---------- Spell picker ---------- */
-  function openPicker(c, done, startLevel) {
+  function openPicker(c, done, startLevel, opts = {}) {
     const b = book(c);
     const k = caster(c);
     const maxSlot = (() => {
@@ -421,10 +494,11 @@ const Spellbook = (() => {
       m.forEach((n, i) => { if (n > 0) top = i; });
       if (k && k.slots && k.slots.pact) top = Math.max(top, k.slots.slotLevel);
       if (c.className === 'Warlock') [[6, 11], [7, 13], [8, 15], [9, 17]].forEach(([lv, at]) => { if (levelOf(c) >= at) top = Math.max(top, lv); });
-      return top;
+      return opts.cls ? Math.max(top, 1) : top;
     })();
-    const lists = k ? k.lists : [];
-    const st = { q: '', level: startLevel !== undefined && startLevel !== '' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false, recOnly: false, bonus: false };
+    const lists = opts.cls ? [opts.cls] : k ? k.lists : [];
+    const bonusSrc = opts.src || 'Bonus spell';
+    const st = { q: '', level: startLevel !== undefined && startLevel !== '' && startLevel !== 'all' ? Number(startLevel) : 'all', allClasses: !lists.length, allLevels: false, recOnly: false, bonus: Boolean(opts.cls) };
     const rec = recommendedFor(k);
     const has = name => b.list.some(e => e.n.toLowerCase() === name.toLowerCase());
 
@@ -450,6 +524,11 @@ const Spellbook = (() => {
     }
 
     function headText() {
+      if (opts.cls) {
+        const mine = book(c).list.filter(e => e.src === bonusSrc);
+        const cn = mine.filter(e => levelOfEntry(e) === 0).length;
+        return `${bonusSrc}: two ${opts.cls.toLowerCase()} cantrips (${cn} chosen) and one level 1 spell (${mine.length - cn} chosen). They don't count toward your limits.`;
+      }
       if (!k) return 'Pick any spells, for example from a feat or your species.';
       const n = counts(c), lim = limits(c);
       const bits = [`${lists.join(', ') || k.className} list${lists.length > 1 ? 's' : ''}, up to level ${maxSlot}`];
@@ -474,7 +553,7 @@ const Spellbook = (() => {
     function render() {
       const n = counts(c);
       body.innerHTML = `
-        <header class="modal-head"><div><h2 id="sbp-title">Choose spells</h2>
+        <header class="modal-head"><div><h2 id="sbp-title">${opts.cls ? esc(bonusSrc) : 'Choose spells'}</h2>
           <p class="muted" data-ref="sbpHead">${esc(headText())}</p></div>
           <button class="icon-btn" data-act="close" aria-label="Close">×</button></header>
         <div class="modal-body">
@@ -487,7 +566,7 @@ const Spellbook = (() => {
               ${lists.length ? `<label class="check-line"><input type="checkbox" data-ref="allc" ${st.allClasses ? 'checked' : ''}> Every class</label>` : ''}
               <label class="check-line"><input type="checkbox" data-ref="alll" ${st.allLevels ? 'checked' : ''}> Higher levels too</label>
               ${rec.size ? `<label class="check-line"><input type="checkbox" data-ref="reco" ${st.recOnly ? 'checked' : ''}> ★ Recommended only</label>` : ''}
-              ${k ? `<label class="check-line" title="For spells from a feat (like Magic Initiate), your species, a magic item or your DM. They don't count toward your class limits."><input type="checkbox" data-ref="bonus" ${st.bonus ? 'checked' : ''}> Adding bonus spells (feat, species, item or DM)</label>` : ''}
+              ${k && !opts.cls ? `<label class="check-line" title="For spells from a feat (like Magic Initiate), your species, a magic item or your DM. They don't count toward your class limits."><input type="checkbox" data-ref="bonus" ${st.bonus ? 'checked' : ''}> Adding bonus spells (feat, species, item or DM)</label>` : ''}
             </div>
           </div>
           <div data-ref="list">${listHTML()}</div>
@@ -532,7 +611,7 @@ const Spellbook = (() => {
         if (t.checked && !has(name)) {
           const sp = SpellList.byName(name);
           if (st.bonus) {
-            b.list.push({ n: name, p: sp && sp.level > 0 ? 1 : 0, src: 'Bonus spell' });
+            b.list.push({ n: name, p: sp && sp.level > 0 ? 1 : 0, src: bonusSrc });
           } else {
             const why = blockReason(c, sp ? sp.level : 1);
             if (why) { t.checked = false; return Util.toast(why, 'error'); }
@@ -560,7 +639,7 @@ const Spellbook = (() => {
       const known = SpellList.byName(name);
       const why = st.bonus ? '' : blockReason(c, known ? known.level : lvl);
       if (why) return Util.toast(why, 'error');
-      const extra = st.bonus ? { src: 'Bonus spell' } : {};
+      const extra = st.bonus ? { src: bonusSrc } : {};
       b.list.push(known ? { n: known.name, p: known.level ? 1 : 0, ...extra } : { n: name, lvl, custom: true, p: lvl ? 1 : 0, ...extra });
       Store.save();
       f.reset();
@@ -571,5 +650,5 @@ const Spellbook = (() => {
     body.querySelector('[data-ref="q"]').focus();
   }
 
-  return { mount, updateStats, caster, stats, book };
+  return { mount, updateStats, caster, stats, book, syncGranted };
 })();

@@ -294,7 +294,8 @@ const Creator = (() => {
     ].filter((x, i, arr) => x !== '' || arr[i + 1]).join('\n').trim();
 
     c.equipment = `From ${ch.className}: ${cl.equip}\nFrom ${ch.background}: ${bg.equip}\n\n(Each can be swapped for gold instead: check your book.)`;
-    c.spells = spellsText(ch, scores);
+    // Species and feat spells go on the Spells tab (js/spellbook.js adds species spells by level).
+    c.spells = '';
     // Spells granted by species go straight onto the Spells tab.
     const granted = [];
     if (ch.species === 'Aasimar') granted.push({ n: 'Light', p: 'a', src: 'Aasimar' });

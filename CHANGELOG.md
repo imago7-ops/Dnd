@@ -6,6 +6,12 @@ Every update to Campaign Codex, newest first, grouped by release. Times are US C
 
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
+## Fourth Patch (2.6)
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-05 15:10 | 2.6 | Requested by imago7-ops, built by Claude | **Download a character as a PDF:** a printable character sheet (ability scores, saves, skills, combat, attacks, proficiencies, features, equipment, notes, and a spell page with slots to tick). Uploading that PDF later brings the character back exactly. **Attacks:** each attack has a STR / DEX choice that sets its to-hit (and the damage bonus) and follows your ability scores. **Spells:** the Spell notes box is gone. Spells from your species are added to the spell list automatically by level (always prepared, not counted toward your limits), and Magic Initiate has a "Choose them" button for its spells. Anything players had written in Spell notes was moved to Notes. Also fixed: uploading a saved character now keeps its Spells tab. |
+
 ## Third Patch (2.5)
 
 | When | Version | Who | What changed |

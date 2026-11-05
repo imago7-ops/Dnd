@@ -50,6 +50,11 @@ const Character = (() => {
       if (c[k] && typeof c[k] === 'object' && !Array.isArray(c[k])) Object.assign(c[k], data[k]);
       else c[k] = data[k];
     }
+    // Keep everything else the file has too (spells tab, how it was created, …).
+    for (const k of Object.keys(data)) {
+      if (k in c || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      c[k] = data[k];
+    }
     if (!Array.isArray(c.attacks)) c.attacks = [];
     c.attacks.forEach(a => { a.id ||= Util.uid(); });
     if (Store.state.characters.some(x => x.id === c.id)) c.id = Util.uid();
@@ -239,8 +244,23 @@ const Character = (() => {
     return out.join('');
   }
 
+  /*
+   * The Spells tab no longer has a Spell notes box: species and feat spells are on the
+   * spell list itself. Anything a player wrote there moves to Notes so nothing is lost.
+   */
+  const GENERATED_SPELL_LINE = /^(Spellcasting ability:|Spell save DC:|Cantrips known:|Prepared spells:|Spell slots:|Pact Magic slots:|Cantrips, prepared spells and slots come|Other spells$|Species spells use|- (Light|Thaumaturgy) cantrip \((Aasimar|Tiefling)\)$|- (Drow|High Elf|Wood Elf|Forest Gnome|Rock Gnome|Abyssal|Chthonic|Infernal): |- Magic Initiate \(\w+\): choose two cantrips)/;
+  function moveSpellNotes(c) {
+    const text = String(c.spells || '');
+    if (!text.trim()) return false;
+    const kept = text.split('\n').filter(l => !GENERATED_SPELL_LINE.test(l.trim())).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (kept) c.notes = [String(c.notes || '').trim(), `Spell notes:\n${kept}`].filter(Boolean).join('\n\n');
+    c.spells = '';
+    return true;
+  }
+
   function mountSheet(el, focusName = false) {
     const c = active();
+    if (c && moveSpellNotes(c)) Store.save();
     const chars = Store.state.characters;
     if (focusName) currentTab = 'info';
     const panel = (id, inner) => `<section class="fpanel" data-panel="${id}" role="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" hidden>${inner}</section>`;
@@ -432,6 +452,15 @@ const Character = (() => {
     </label>`;
   }
 
+  /* An attack set to STR or DEX: to hit = proficiency + that modifier, and the damage bonus follows. */
+  function applyAttackAbility(c, a) {
+    if (a.abil !== 'str' && a.abil !== 'dex') return;
+    const m = mod(c.abilities[a.abil]);
+    a.bonus = prof(c) + m;
+    const d = /^\s*(\d+d\d+)\s*(?:[+-]\s*\d+)?(.*)$/i.exec(String(a.damage || ''));
+    if (d) a.damage = `${d[1]}${m ? (m > 0 ? '+' : '') + m : ''}${d[2] ? (/^\s/.test(d[2]) ? d[2] : ' ' + d[2].trim()) : ''}`.trim();
+  }
+
   function attacksHTML(c) {
     if (!c.attacks.length) return `<p class="empty-line">No attacks yet. Add your weapons and cantrips here.</p>`;
     return `
@@ -440,6 +469,11 @@ const Character = (() => {
         <div class="attack" data-attack="${a.id}">
           <input data-atk="name" value="${Util.esc(a.name)}" placeholder="Longsword" aria-label="Attack name">
           <div class="atk-cell">
+            <select data-atk="abil" class="atk-abil" aria-label="Ability for the attack" title="Strength or Dexterity: sets the to-hit bonus (and the damage bonus)">
+              <option value="str" ${a.abil === 'str' ? 'selected' : ''}>STR</option>
+              <option value="dex" ${a.abil === 'dex' ? 'selected' : ''}>DEX</option>
+              <option value="" ${a.abil ? '' : 'selected'}>Own</option>
+            </select>
             <input type="number" data-atk="bonus" value="${Util.esc(a.bonus)}" aria-label="Attack bonus">
             <button class="chip-btn" data-roll="atk:${a.id}" title="Roll to hit">Hit</button>
           </div>
@@ -504,17 +538,29 @@ const Character = (() => {
           const dl = el.querySelector('#dl-subclasses');
           if (dl) dl.innerHTML = subclassOptions(t.value);
         }
-        if (t.dataset.bind.startsWith('abilities.') && c.attacks.some(a => a.auto)) {
-          c.attacks.forEach(a => { if (a.auto && typeof Creator !== 'undefined') Creator.recalcAttack(a, c.abilities, Util.clamp(Util.num(c.level, 1), 1, 20), c.className); });
+        if (t.dataset.bind.startsWith('abilities.') && c.attacks.some(a => a.auto || a.abil)) {
+          c.attacks.forEach(a => {
+            if (a.abil) applyAttackAbility(c, a);
+            else if (a.auto && typeof Creator !== 'undefined') Creator.recalcAttack(a, c.abilities, Util.clamp(Util.num(c.level, 1), 1, 20), c.className);
+          });
           el.querySelector('[data-ref="attacks"]').innerHTML = attacksHTML(c);
         }
         if (t.dataset.bind === 'className' && CLASSES[t.value] && /^\d+d\d+$/.test(c.hitDice)) {
           c.hitDice = `${c.level}d${CLASSES[t.value]}`;
           el.querySelector('[data-bind="hitDice"]').value = c.hitDice;
         }
+      } else if (t.dataset.atk === 'abil') {
+        if (e.type !== 'change') return;
+        const a = c.attacks.find(x => x.id === t.closest('[data-attack]').dataset.attack);
+        a.abil = t.value;
+        delete a.auto;
+        applyAttackAbility(c, a);
+        el.querySelector('[data-ref="attacks"]').innerHTML = attacksHTML(c);
       } else if (t.dataset.atk) {
         const a = c.attacks.find(x => x.id === t.closest('[data-attack]').dataset.attack);
         a[t.dataset.atk] = t.dataset.atk === 'bonus' ? Util.num(t.value, 0) : t.value;
+        // Typing your own to-hit number switches the row to "Own".
+        if (t.dataset.atk === 'bonus' && a.abil) { a.abil = ''; const sel = t.closest('[data-attack]').querySelector('[data-atk="abil"]'); if (sel) sel.value = ''; }
         // Once hand-edited, an attack is no longer recalculated automatically.
         if (t.dataset.atk !== 'name') delete a.auto;
       } else {
@@ -567,8 +613,9 @@ const Character = (() => {
         case 'new': return createNew(el);
         case 'upload': return upload(el);
         case 'download':
-          Util.download(`${Util.slug(c.name || 'character')}.json`, c);
-          return Util.toast('Character downloaded.');
+          if (typeof SheetPDF === 'undefined') { Util.download(`${Util.slug(c.name || 'character')}.json`, c); return Util.toast('Character downloaded.'); }
+          try { SheetPDF.download(c); } catch (err) { console.error(err); return Util.toast('Couldn\'t make the PDF. Try again.', 'error'); }
+          return Util.toast('Character sheet downloaded as a PDF. You can upload it here again later.');
         case 'delete': {
           if (!confirmDelete(btn)) return;
           const s = Store.state;
@@ -581,7 +628,7 @@ const Character = (() => {
         case 'damage':
         case 'heal': return adjustHP(c, el, btn.dataset.action);
         case 'add-attack':
-          c.attacks.push({ id: Util.uid(), name: '', bonus: prof(c) + mod(c.abilities.str), damage: '' });
+          c.attacks.push({ id: Util.uid(), name: '', abil: 'str', bonus: prof(c) + mod(c.abilities.str), damage: '' });
           Store.save();
           el.querySelector('[data-ref="attacks"]').innerHTML = attacksHTML(c);
           el.querySelector('[data-attack]:last-child input')?.focus();
@@ -713,5 +760,8 @@ const Character = (() => {
     }
   }
 
-  return { mount, active, initBonus, blank, normalize };
+  /* Numbers the PDF sheet needs, worked out the same way as on screen. */
+  const calc = { ABILITIES, SKILLS, mod, prof, saveBonus, skillBonus, passivePerception, initBonus };
+
+  return { mount, active, initBonus, blank, normalize, calc };
 })();

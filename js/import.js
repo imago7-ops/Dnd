@@ -406,17 +406,20 @@ const CharImport = (() => {
     c.proficiencies = String(sheet.proficiencies || '');
     c.equipment = String(sheet.equipment || '');
     c.notes = String(sheet.notes || '');
-    // Spells: ones we know go onto the Spells tab; anything else is kept in spell notes.
-    const list = [], unknown = [];
+    // Spells: ones in the spell list go onto the Spells tab; others are added as homebrew spells.
+    const list = [];
     (sheet.spells || []).forEach(raw => {
-      const n = String(raw || '').replace(/\s*\(.*\)\s*$/, '').trim();
-      if (!n) return;
+      const text = String(raw || '');
+      const n = text.replace(/\s*\(.*\)\s*$/, '').trim();
+      if (!n || list.some(e => e.n.toLowerCase() === n.toLowerCase())) return;
       const s = typeof SpellList !== 'undefined' && SpellList.byName(n);
-      if (s && !list.some(e => e.n === s.name)) list.push({ n: s.name, p: s.level ? 1 : 0 });
-      else if (!s) unknown.push(n);
+      if (s) return list.push({ n: s.name, p: s.level ? 1 : 0 });
+      const lvl = /cantrip/i.test(text) ? 0 : Util.clamp(Util.num((/(\d)/.exec(text.slice(n.length)) || [])[1], 1), 0, 9);
+      list.push({ n: n.slice(0, 60), lvl, custom: true, p: lvl ? 1 : 0 });
     });
     c.spellbook = { list, used: {}, arcana: {}, pactUsed: 0 };
-    c.spells = [sheet.spellNotes ? String(sheet.spellNotes) : '', unknown.length ? `Spells from the sheet that aren't in the spell list (add them with "Add a spell that isn't listed"): ${unknown.join(', ')}` : ''].filter(Boolean).join('\n\n');
+    if (sheet.spellNotes) c.notes = [c.notes, `Spell notes from the sheet:\n${String(sheet.spellNotes)}`].filter(Boolean).join('\n\n');
+    c.spells = '';
     c.imported = { from: sheet._from || 'sheet', at: Date.now() };
     return c;
   }
@@ -515,7 +518,7 @@ If several pages are included, combine them. If the sheet lists more than one cl
         <p><b>Saving throws:</b> ${esc(saves || 'none marked')}</p>
         <p><b>Skills:</b> ${esc(skills || 'none marked')}</p>
         <p><b>Attacks:</b> ${esc(c.attacks.map(a => a.name).join(', ') || 'none')}</p>
-        <p><b>Spells:</b> ${nSpells ? `${nSpells} matched to the spell list` : 'none matched'}${/aren't in the spell list/.test(c.spells) ? ' (others kept in Spell notes)' : ''}</p>
+        <p><b>Spells:</b> ${nSpells ? `${nSpells} found` : 'none found'}</p>
         <p><b>Features, proficiencies, equipment, notes:</b> ${[c.features && 'features', c.proficiencies && 'proficiencies', c.equipment && 'equipment', c.notes && 'notes'].filter(Boolean).join(', ') || 'none found'}</p>
         ${missing.length ? `<p class="imp-warn">Not found: ${esc(missing.join(', '))}. Fill these in on the sheet.</p>` : ''}
       </div>`;
@@ -557,7 +560,11 @@ If several pages are included, combine them. If the sheet lists more than one cl
     if (files.length === 1 && (/\.pdf$/i.test(files[0].name) || files[0].type === 'application/pdf')) {
       body.innerHTML = `${head('Reading the PDF…')}<div class="modal-body"><p class="ai-wait">Looking for the sheet's form fields…</p></div>`;
       try {
-        const { fields, encrypted } = await pdfFields(new Uint8Array(await files[0].arrayBuffer()));
+        const pdfBytes = new Uint8Array(await files[0].arrayBuffer());
+        // A sheet downloaded from Campaign Codex carries the whole character inside it.
+        const own = typeof SheetPDF !== 'undefined' && SheetPDF.readEmbedded(pdfBytes);
+        if (own) { close(); return onJSON(own); }
+        const { fields, encrypted } = await pdfFields(pdfBytes);
         if (encrypted) {
           close();
           return Util.toast('That PDF is locked with a password. Open it, save a copy without the password (or take photos of it), then upload that.', 'error');

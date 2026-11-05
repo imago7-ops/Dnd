@@ -460,7 +460,7 @@ button.qs:hover { border-color: var(--accent); }
 .pip.fail.on { background: var(--red); border-color: var(--red); }
 input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
 
-.attack-head, .attack { display: grid; grid-template-columns: minmax(110px, 1.2fr) 104px minmax(150px, 1fr) 28px; gap: 6px; align-items: center; }
+.attack-head, .attack { display: grid; grid-template-columns: minmax(110px, 1.2fr) 168px minmax(150px, 1fr) 28px; gap: 6px; align-items: center; }
 .attack-head { font-size: .78rem; color: var(--faint); padding: 0 2px 4px; }
 .attack { padding: 6px 0; }
 .attack + .attack { border-top: 1px solid var(--line-soft); }
@@ -1753,3 +1753,7 @@ body.bm-lock .dice-fab { display: none; }
   .imp-scores { grid-template-columns: repeat(3, 1fr); }
   .imp-facts { grid-template-columns: repeat(2, 1fr); }
 }
+.atk-cell .atk-abil { width: 62px; flex: none; padding-left: 6px; padding-right: 2px; font-size: .85rem; }
+.sb-grant { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); background: var(--gold-soft); border-radius: var(--r-sm); font-size: .92rem; }
+.sb-grant .btn { flex: none; }
+@media (max-width: 560px) { .sb-grant { flex-direction: column; align-items: stretch; } }
