@@ -160,8 +160,16 @@ const Guide = (() => {
     /* Everything about one entry, read-only, with quick actions. */
     function detailHTML(x) {
       const skip = new Set(['name']);
-      const rows = x.t.fields.filter(([k]) => !skip.has(k) && String(x.e.f[k] || '').trim())
+      // Stat blocks: the six scores read as one line, like the books.
+      const SIX = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+      const has = k => String(x.e.f[k] ?? '').trim() !== '';
+      if (x.t.statblock) SIX.slice(1).forEach(k => skip.add(k));
+      const rows = x.t.fields.filter(([k]) => !skip.has(k) && (has(k) || (x.t.statblock && k === 'str' && SIX.some(has))))
         .map(([k, label]) => {
+          if (x.t.statblock && k === 'str') {
+            const line = SIX.filter(has).map(a => { const n = Number(x.e.f[a]); return `${a.toUpperCase()} ${esc(x.e.f[a])}${Number.isFinite(n) ? ` (${n >= 10 ? '+' : ''}${Math.floor((n - 10) / 2)})` : ''}`; }).join(' · ');
+            return `<div class="gd-row wide"><dt>Ability scores</dt><dd>${line}</dd></div>`;
+          }
           if (k === 'creatures') {
             return `<div class="gd-row wide"><dt>${esc(label.replace(/\s*\(.*\)$/, ''))}</dt><dd><ul class="gd-creatures">${creatureLines(x.e.f.creatures).map(c =>
               `<li><b>${c.count > 1 ? `${c.count} × ` : ''}${esc(c.name)}</b>${c.stats ? ` <span class="muted">AC ${c.stats.ac}, HP ${c.stats.hp}${c.stats.cr ? `, CR ${esc(c.stats.cr)}` : ''}</span> <button class="link-btn" data-card="${c.stats.x.e.id}">stats</button>` : ''}</li>`).join('')}</ul></dd></div>`;

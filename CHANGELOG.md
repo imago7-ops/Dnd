@@ -6,6 +6,18 @@ Every update to Campaign Codex, newest first, grouped by release. Version number
 
 AI drafting requests (who asked the AI for what, and when) are tracked separately in the site's **AI activity** log on the DM's Campaigns page.
 
+## 4.2: Second Patch
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-07 13:05 | 4.2 | Requested by imago7-ops, built by Claude | **Bosses** and **Monsters and enemies** now look like stat blocks from the books. Each has Armor Class (with armor type), Hit Points (with hit dice) and Speed; the six ability scores in separate boxes with their modifiers; saving throws, skills, damage vulnerabilities, resistances and immunities, condition immunities, senses with passive Perception, languages and challenge (with XP and proficiency bonus); then Traits, Actions and Reactions. Bosses also get Legendary Actions and Lair Actions. **Tactics** is its own box under the stat block, separate from abilities. Existing bosses and monsters move over on their own: "15 6 14 2 6 1" ability scores split into the six boxes, and a boss's old "Abilities and tactics" text moves to Actions. AI drafting writes the new stat block fields, and the campaign guide shows the six scores on one line. |
+
+## 4.1: First Patch
+
+| When | Version | Who | What changed |
+|---|---|---|---|
+| 2026-11-05 15:12 | 4.1 | Requested by imago7-ops, built by Claude | **Your homebrew** now lists each homebrew class with its subclasses underneath, and a "+ New (class) subclass" link that starts with that class picked. Subclasses for official classes (like a new Fighter subclass) are grouped by class. Downloading a class includes its subclasses, and deleting a class deletes its subclasses too (the button says so first). |
+
 ## 4.0: Version 4
 
 | When | Version | Who | What changed |

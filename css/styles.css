@@ -1791,3 +1791,54 @@ body.bm-lock .dice-fab { display: none; }
   .hb-row > .wide { grid-column: 1 / -1; }
   .hb-list li { flex-wrap: wrap; gap: 8px 14px; }
 }
+/* Your homebrew: each class with its subclasses underneath */
+.hb-list .hb-subs { display: block; padding: 0 0 6px; border-bottom: 1px solid var(--line-soft); }
+.hb-sublist { margin: 0 0 0 18px; padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.hb-sublist li { border-bottom: 1px dashed var(--line-soft); padding: 5px 0; }
+.hb-sublist li:last-child { border-bottom: 0; }
+.hb-sublist .hb-name b { font-weight: 500; }
+.hb-parent { margin: 12px 0 2px; font-size: .95rem; }
+.hb-add { padding-top: 6px; }
+.hb-list > li:has(+ .hb-subs) { border-bottom: 0; }
+
+/* ---------- Stat blocks for bosses and monsters (version 4.2) ---------- */
+.statblock {
+  margin-top: 10px; padding: 14px 16px 16px; border-radius: 10px;
+  background: color-mix(in srgb, var(--c) 6%, var(--panel-2, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--c) 30%, var(--line));
+  border-top: 4px solid var(--c); border-bottom: 4px solid var(--c);
+  font-size: .95rem;
+}
+.sb-in { background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; color: var(--text); font: inherit; min-width: 0; }
+.sb-in:hover { border-color: var(--line); }
+.sb-in:focus { border-color: color-mix(in srgb, var(--c) 70%, transparent); background: var(--bg); outline: none; }
+.sb-in::placeholder, .sb-area::placeholder { color: var(--muted); opacity: .38; font-style: italic; }
+.sb-name { display: block; width: 100%; font-family: var(--serif); font-variant: small-caps; font-weight: 700; font-size: 1.6rem; letter-spacing: .02em; color: var(--c); padding: 0 6px; }
+.sb-type { display: block; width: 100%; font-style: italic; font-size: .88rem; color: var(--muted); padding-top: 0; }
+.sb-rule { height: 3px; margin: 8px 0; background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 10%, transparent)); border-radius: 2px; }
+.sb-line { display: flex; align-items: center; flex-wrap: wrap; gap: 0 2px; min-height: 30px; }
+.sb-k { font-weight: 700; color: color-mix(in srgb, var(--c) 55%, var(--text)); padding-left: 6px; white-space: nowrap; }
+.sb-k2 { font-weight: 600; padding-left: 10px; }
+.sb-grow { flex: 1 1 180px; }
+.sb-num { width: 4.6em; }
+.sb-cr { width: 5em; }
+.sb-paren { flex: 1 1 140px; }
+.sb-xp { color: var(--muted); font-size: .9rem; }
+.sb-abil { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; text-align: center; }
+.sb-score { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.sb-score span { font-weight: 800; font-size: .8rem; letter-spacing: .06em; color: color-mix(in srgb, var(--c) 55%, var(--text)); }
+.sb-score input { width: 3.6em; text-align: center; font-size: 1.05rem; font-weight: 600; padding: 2px; -moz-appearance: textfield; }
+.sb-score input::-webkit-inner-spin-button, .sb-score input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sb-score em { font-style: normal; font-size: .85rem; color: var(--muted); min-height: 1.2em; }
+.sb-head { margin: 12px 0 2px; padding: 0 6px 3px; font-family: var(--serif); font-variant: small-caps; font-size: 1.2rem; font-weight: 600; color: var(--c); border-bottom: 1px solid color-mix(in srgb, var(--c) 50%, transparent); }
+.sb-area { display: block; width: 100%; resize: none; overflow: hidden; min-height: 2.2em; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px 6px; color: var(--text); font: inherit; line-height: 1.5; }
+.sb-area:hover { border-color: var(--line); }
+.sb-area:focus { border-color: color-mix(in srgb, var(--c) 70%, transparent); background: var(--bg); outline: none; }
+.statblock > .sb-area:first-of-type { margin-top: 0; }
+.sb-tactics { margin-top: 2px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 10px; background: var(--panel); }
+.sb-tactics textarea { width: 100%; resize: none; overflow: hidden; min-height: 38px; }
+@media (max-width: 600px) {
+  .statblock { padding: 12px 10px; }
+  .sb-abil { grid-template-columns: repeat(3, 1fr); row-gap: 8px; }
+  .sb-k2 { padding-left: 6px; }
+}

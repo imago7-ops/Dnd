@@ -9,6 +9,55 @@ const Campaign = (() => {
   const esc = Util.esc;
 
   /* Field: [key, label, type, options]. type: text | textarea | select | number | date */
+  /* Stat block fields shared by bosses and monsters, in the order a 5e stat block reads. */
+  const ABIL6 = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const ABIL6_NAME = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+  const STAT_FIELDS = [
+    ['name', 'Name', 'text'], ['ctype', 'Size, type and alignment', 'text'],
+    ['ac', 'Armor Class', 'number'], ['acNote', 'Armor type', 'text'],
+    ['hp', 'Hit Points', 'number'], ['hpDice', 'Hit dice', 'text'], ['speed', 'Speed', 'text'],
+    ...ABIL6.map(a => [a, `${ABIL6_NAME[a]} score`, 'number']),
+    ['saves', 'Saving throws', 'text'], ['skills', 'Skills', 'text'],
+    ['vuln', 'Damage vulnerabilities', 'text'], ['resist', 'Damage resistances', 'text'],
+    ['immune', 'Damage immunities', 'text'], ['condImmune', 'Condition immunities', 'text'],
+    ['senses', 'Senses', 'text'], ['passive', 'Passive Perception', 'number'],
+    ['languages', 'Languages', 'text'], ['cr', 'Challenge rating', 'text'],
+    ['traits', 'Traits', 'textarea'], ['actions', 'Actions', 'textarea'], ['reactions', 'Reactions', 'textarea'],
+  ];
+  const CR_XP = { '0': 10, '1/8': 25, '1/4': 50, '1/2': 100, 1: 200, 2: 450, 3: 700, 4: 1100, 5: 1800, 6: 2300, 7: 2900, 8: 3900, 9: 5000, 10: 5900, 11: 7200, 12: 8400, 13: 10000, 14: 11500, 15: 13000, 16: 15000, 17: 18000, 18: 20000, 19: 22000, 20: 25000, 21: 33000, 22: 41000, 23: 50000, 24: 62000, 25: 75000, 26: 90000, 27: 105000, 28: 120000, 29: 135000, 30: 155000 };
+  const crKey = v => String(v || '').trim().replace(/^cr\s*/i, '').replace(/\s*\(.*$/, '');
+  const xpFor = v => CR_XP[crKey(v)];
+  const pbFor = v => { const k = crKey(v); const n = k.includes('/') ? 0 : Number(k); return Number.isFinite(n) && k !== '' ? Math.max(2, Math.ceil(Math.max(n, 1) / 4) + 1) : null; };
+  const abilMod = v => { const n = Number(v); return String(v ?? '').trim() !== '' && Number.isFinite(n) ? Math.floor((n - 10) / 2) : null; };
+  const signed = n => (n >= 0 ? `+${n}` : `${n}`);
+
+  /* Older bosses and monsters: split "15 6 14 2 6 1" into six scores; a boss's old
+     "Abilities and tactics" box held its attacks, so it moves to Actions (Tactics is its own box now). */
+  function upgradeStatBlocks(cp) {
+    let changed = false;
+    (cp.sections || []).forEach(sec => {
+      if (sec.type !== 'bosses' && sec.type !== 'monsters') return;
+      (sec.entries || []).forEach(e => {
+        if (!e || e.sb) return;
+        const f = e.f || (e.f = {});
+        if (typeof f.abilities === 'string' && f.abilities.trim()) {
+          const nums = f.abilities.replace(/\([^)]*\)/g, ' ').match(/-?\d+/g) || [];
+          if (nums.length >= 6 && ABIL6.every(a => !String(f[a] || '').trim())) {
+            ABIL6.forEach((a, i) => { f[a] = String(nums[i]); });
+            delete f.abilities;
+          }
+        }
+        if (sec.type === 'bosses' && String(f.tactics || '').trim() && !String(f.actions || '').trim()) {
+          f.actions = f.tactics;
+          f.tactics = '';
+        }
+        e.sb = 1;
+        changed = true;
+      });
+    });
+    return changed;
+  }
+
   const TYPES = {
     npcs: {
       label: 'NPCs', one: 'NPC', color: 'var(--violet)',
@@ -50,25 +99,25 @@ const Campaign = (() => {
       label: 'Bosses', one: 'boss', color: 'var(--red)',
       blurb: 'Villains and big fights worth planning in detail.',
       fields: [
-        ['name', 'Name', 'text'], ['cr', 'Challenge rating', 'text'], ['ac', 'AC', 'number'], ['hp', 'HP', 'number'],
+        ...STAT_FIELDS,
+        ['legendary', 'Legendary actions', 'textarea'], ['lair', 'Lair actions', 'textarea'],
+        ['tactics', 'Tactics', 'textarea'],
         ['location', 'Lair or location', 'text', 'locations'], ['faction', 'Faction', 'text', 'factions'],
-        ['motive', 'Motive', 'textarea'], ['tactics', 'Abilities and tactics', 'textarea'],
-        ['legendary', 'Legendary and lair actions', 'textarea'], ['phases', 'Phases or weaknesses', 'textarea'],
+        ['motive', 'Motive', 'textarea'], ['phases', 'Phases or weaknesses', 'textarea'],
         ['loot', 'Loot', 'textarea'], ['notes', 'Notes', 'textarea'],
       ],
+      statblock: true,
       summary: ['location'], badge: 'cr', badgePrefix: 'CR ', combat: 'single',
     },
     monsters: {
       label: 'Monsters and enemies', one: 'monster', color: '#c77d5a',
       blurb: 'Creatures and foes with quick stats, ready to drop into a fight.',
       fields: [
-        ['name', 'Name', 'text'], ['ctype', 'Size and type', 'text'], ['cr', 'Challenge rating', 'text'],
-        ['ac', 'AC', 'number'], ['hp', 'HP', 'number'], ['speed', 'Speed', 'text'],
-        ['abilities', 'Ability scores (STR DEX CON INT WIS CHA)', 'text'],
-        ['traits', 'Traits', 'textarea'], ['actions', 'Actions and attacks', 'textarea'],
+        ...STAT_FIELDS,
         ['tactics', 'Tactics', 'textarea'], ['habitat', 'Where it is found', 'text', 'locations'],
         ['loot', 'Loot', 'textarea'], ['notes', 'Notes', 'textarea'],
       ],
+      statblock: true,
       summary: ['ctype', 'habitat'], badge: 'cr', badgePrefix: 'CR ', combat: 'single',
     },
     weather: {
@@ -162,6 +211,7 @@ const Campaign = (() => {
       DEFAULT_ORDER.forEach(type => {
         if (!cp.sections.some(s => s.type === type)) cp.sections.push({ id: type, type, label: TYPES[type].label, open: false, entries: [] });
       });
+      upgradeStatBlocks(cp);
       return cp;
     }
     const next = blank();
@@ -453,6 +503,7 @@ const Campaign = (() => {
 
   /* ---------- UI ---------- */
   function mountNotebook(el, cp) {
+    if (upgradeStatBlocks(cp)) Store.save();
     const save = () => { cp.updated = Date.now(); Store.save(); };
     let query = '';
     let show = 'all'; // all | known | hidden
@@ -577,9 +628,9 @@ const Campaign = (() => {
             ${visButton(e)}
           </div>
           ${open ? `<div class="entry-body">
-            <div class="entry-grid">
+            ${t.statblock ? statBlockHTML(t, e) : `<div class="entry-grid">
               ${t.fields.map(([k, label, type, opt]) => fieldHTML(k, label, type, opt, e.f[k])).join('')}
-            </div>
+            </div>`}
             <div class="tag-editor">
               <span class="tag-label">Tags</span>
               ${tags.map(x => `<span class="tag-chip edit"><button class="tag-go" data-action="filter-tag" data-tag="${esc(x)}" title="Show everything tagged ${esc(x)}">${esc(x)}</button><button class="tag-x" data-action="remove-tag" data-tag="${esc(x)}" aria-label="Remove tag ${esc(x)}">×</button></span>`).join('')}
@@ -612,6 +663,52 @@ const Campaign = (() => {
           ${g.items.map(x => `<button class="link-btn linked-item" data-action="jump" data-sec="${g.sec.id}" data-id="${x.id}">${esc(x.f.name || 'Unnamed')}${x.known ? '' : ' <span class="muted">(hidden)</span>'}</button>`).join('')}
         </div>`).join('')}
       </div>`;
+    }
+
+    /* Bosses and monsters: an editable stat block laid out like the ones in the books. */
+    function statBlockHTML(t, e) {
+      const f = e.f;
+      const v = k => esc(f[k] ?? '');
+      const lab = k => (t.fields.find(x => x[0] === k) || [k, k])[1];
+      const inp = (k, cls = '', ph = '', type = 'text') => `<input class="sb-in ${cls}" type="${type}" data-field="${k}" value="${v(k)}" placeholder="${esc(ph)}" aria-label="${esc(lab(k))}" autocomplete="off">`;
+      const line = (label, inner) => `<div class="sb-line"><span class="sb-k">${label}</span>${inner}</div>`;
+      const area = (k, ph) => `<textarea class="sb-area" data-field="${k}" rows="1" placeholder="${esc(ph)}" aria-label="${esc(lab(k))}">${v(k)}</textarea>`;
+      const head = (title, k, ph) => `<h4 class="sb-head">${title}</h4>${area(k, ph)}`;
+      const wisMod = abilMod(f.wis);
+      const xp = xpFor(f.cr), pb = pbFor(f.cr);
+      const used = new Set([...STAT_FIELDS.map(x => x[0]), 'legendary', 'lair', 'tactics']);
+      const rest = t.fields.filter(([k]) => !used.has(k));
+      return `<div class="statblock">
+          <input class="sb-in sb-name" data-field="name" value="${v('name')}" placeholder="Name" aria-label="Name" autocomplete="off">
+          <input class="sb-in sb-type" data-field="ctype" value="${v('ctype')}" placeholder="Medium aberration, neutral evil" aria-label="Size, type and alignment" autocomplete="off">
+          <div class="sb-rule"></div>
+          ${line('Armor Class', `${inp('ac', 'sb-num', '–', 'number')}${inp('acNote', 'sb-paren', 'e.g. natural armor')}`)}
+          ${line('Hit Points', `${inp('hp', 'sb-num', '–', 'number')}${inp('hpDice', 'sb-paren', 'e.g. 6d8 + 18')}`)}
+          ${line('Speed', inp('speed', 'sb-grow', 'e.g. 30 ft., fly 60 ft.'))}
+          <div class="sb-rule"></div>
+          <div class="sb-abil">${ABIL6.map(a => {
+            const m = abilMod(f[a]);
+            return `<label class="sb-score"><span>${a.toUpperCase()}</span><input class="sb-in" type="number" min="1" max="30" data-field="${a}" value="${v(a)}" placeholder="–" aria-label="${ABIL6_NAME[a]} score"><em data-mod="${a}">${m === null ? '' : `(${signed(m)})`}</em></label>`;
+          }).join('')}</div>
+          <div class="sb-rule"></div>
+          ${line('Saving Throws', inp('saves', 'sb-grow', 'e.g. Int +5, Wis +9'))}
+          ${line('Skills', inp('skills', 'sb-grow', 'e.g. Perception +4, Stealth +5'))}
+          ${line('Damage Vulnerabilities', inp('vuln', 'sb-grow', 'e.g. thunder'))}
+          ${line('Damage Resistances', inp('resist', 'sb-grow', 'e.g. acid; bludgeoning from nonmagical attacks'))}
+          ${line('Damage Immunities', inp('immune', 'sb-grow', 'e.g. fire, poison'))}
+          ${line('Condition Immunities', inp('condImmune', 'sb-grow', 'e.g. charmed, frightened'))}
+          ${line('Senses', `${inp('senses', 'sb-grow', 'e.g. darkvision 60 ft.')}<span class="sb-k sb-k2">passive Perception</span>${inp('passive', 'sb-num', wisMod === null ? '10' : String(10 + wisMod), 'number')}`)}
+          ${line('Languages', inp('languages', 'sb-grow', 'e.g. Common, Giant'))}
+          ${line('Challenge', `${inp('cr', 'sb-cr', 'e.g. 2')}<span class="sb-xp" data-xp>${xp ? `(${xp.toLocaleString()} XP${pb ? `; PB +${pb}` : ''})` : ''}</span>`)}
+          <div class="sb-rule"></div>
+          ${head('Traits', 'traits', 'e.g. Keen Sight. Advantage on Wisdom (Perception) checks that rely on sight.')}
+          ${head('Actions', 'actions', 'e.g. Multiattack. Two claw attacks.\nClaws. Melee Weapon Attack: +4 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) slashing damage.')}
+          ${head('Reactions', 'reactions', 'e.g. Parry. +2 AC against one melee attack that would hit.')}
+          ${t.fields.some(x => x[0] === 'legendary') ? head('Legendary Actions', 'legendary', 'e.g. Can take 3 legendary actions at the end of another creature\'s turn.\nAttack. Makes one claw attack.\nMove. Moves up to half its speed.') : ''}
+          ${t.fields.some(x => x[0] === 'lair') ? head('Lair Actions', 'lair', 'e.g. On initiative count 20, the lair shakes: DC 15 Dexterity save or fall prone.') : ''}
+        </div>
+        <label class="field wide sb-tactics"><span>Tactics</span><textarea data-field="tactics" rows="1" placeholder="How it fights: who it targets first, when it retreats, what it does when bloodied.">${v('tactics')}</textarea></label>
+        ${rest.length ? `<div class="entry-grid">${rest.map(([k, label, type, opt]) => fieldHTML(k, label, type, opt, f[k])).join('')}</div>` : ''}`;
     }
 
     function fieldHTML(k, label, type, opt, value) {
@@ -684,6 +781,7 @@ const Campaign = (() => {
       t.fields.forEach(([k, , type, opt]) => { if (type === 'select') f[k] = opt[0]; });
       if (filled) Object.assign(f, filled);
       const e = { id: Util.uid(), open: true, known: false, tags: [], f };
+      if (t.statblock) e.sb = 1;
       if (tagFilter) e.tags.push(tagFilter);
       // New session folders are numbered and tagged automatically.
       if (sec.type === 'sessions' && !filled) {
@@ -740,8 +838,8 @@ const Campaign = (() => {
     function aiPrompt(sec, request, useContext, current) {
       const t = typeOf(sec);
       const extra = {
-        bosses: 'Make the stats, abilities and legendary actions fit the challenge rating and 5e conventions. Give the boss a clear motive and a weakness the party can discover. Keep every field short (under 60 words) so the whole reply fits.',
-        monsters: 'Make AC, HP, ability scores and attacks fit the challenge rating and 5e conventions (attack bonus, damage dice and save DCs written out).',
+        bosses: 'Write it as a 5e stat block: AC, HP and hit dice, the six ability scores, saves, skills, senses with passive Perception, and traits, actions, reactions and legendary actions with attack bonuses, damage dice and save DCs written out, all fitting the challenge rating. Put each trait or action on its own line starting with its name, like "Multiattack. ...". Tactics is how it fights, separate from its actions. Give the boss a clear motive and a weakness the party can discover. Leave a field empty if it doesn\'t apply. Keep every field short (under 60 words) so the whole reply fits.',
+        monsters: 'Write it as a 5e stat block: AC, HP and hit dice, the six ability scores, senses with passive Perception, and traits, actions and reactions with attack bonuses, damage dice and save DCs written out, all fitting the challenge rating. Put each trait or action on its own line starting with its name. Leave a field empty if it doesn\'t apply.',
         encounters: 'List creatures one per line with a count, like "3 Goblin". Balance it for the party described, or a typical party of four if none is given.',
         npcs: 'Give them a distinct voice and something they want from the party.',
         abnormalities: 'Describe what players can observe separately from the hidden true cause.',
@@ -946,6 +1044,20 @@ const Campaign = (() => {
           n.classList.toggle('unnamed', !t.value);
         }
         if (ty.summary.includes(t.dataset.field)) row.querySelector('.entry-meta').textContent = summaryOf(ty, entry);
+        if (ty.statblock) {
+          const k = t.dataset.field;
+          if (ABIL6.includes(k)) {
+            const m = abilMod(t.value);
+            row.querySelector(`[data-mod="${k}"]`).textContent = m === null ? '' : `(${signed(m)})`;
+            if (k === 'wis') row.querySelector('[data-field="passive"]').placeholder = m === null ? '10' : String(10 + m);
+          }
+          if (k === 'cr') {
+            const xp = xpFor(t.value), pb = pbFor(t.value);
+            row.querySelector('[data-xp]').textContent = xp ? `(${xp.toLocaleString()} XP${pb ? `; PB +${pb}` : ''})` : '';
+            const badge = row.querySelector('.entry-head .badge');
+            if (badge) badge.textContent = t.value ? `CR ${t.value}` : '';
+          }
+        }
         save();
         return;
       }
